@@ -63,7 +63,7 @@ squadsync/
 │   │   │           ├── configure/   # allocation rules setup
 │   │   │           └── engine/      # run allocation + results
 │   │   └── join/
-│   │       └── [eventId]/page.tsx   # public mobile registration form
+│   │       └── [slug]/page.tsx      # public mobile registration form
 │   ├── components/
 │   ├── lib/                         # API client, auth helpers
 │   └── hooks/
@@ -129,7 +129,7 @@ events
   participant_limit   INTEGER
   team_count          INTEGER NOT NULL
   status              ENUM(draft, active, allocated, archived)
-  registration_slug   TEXT UNIQUE NOT NULL  -- used in QR URL
+  registration_slug   TEXT UNIQUE NOT NULL  -- auto-generated at creation; URL-safe random string (e.g. "abc123xz"); used in QR URL
   created_at          TIMESTAMPTZ
 
 event_co_organizers
@@ -185,7 +185,7 @@ team_members
 
 ### Key Design Decisions
 
-- `composite_score` is computed at registration time and stored. Recomputed only when `allocation_config` weights change.
+- `composite_score` is computed at registration time and stored. At the start of each allocation run, the engine checks whether stored weights match the current `allocation_config`; if they differ, all participant scores for that event are recomputed before the run begins.
 - `snapshot_hash` is SHA-256 of the sorted participant ID set — guarantees reproducibility and detects stale allocations.
 - `constraint_warnings` is JSONB — shape: `{"team_03": ["missing: frontend"]}`. Evolves without schema migrations.
 - `role_constraints` is JSONB — organizer sets minimum counts per role. Empty object means no constraints.
@@ -351,7 +351,7 @@ Route protection:
 | `/dashboard/events/[id]/attendees` | Attendees | Paginated table, search/filter, QR display + PNG download |
 | `/dashboard/events/[id]/configure` | Configure | Weight sliders (locked to sum 1.0), role constraint builder |
 | `/dashboard/events/[id]/engine` | Engine | Run button, pass progress, results grid, publish + export |
-| `/join/[eventId]` | Registration | Mobile-first form, in-place confirmation card |
+| `/join/[slug]` | Registration | Mobile-first form, in-place confirmation card |
 
 ### Registration Form Fields
 
