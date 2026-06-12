@@ -6,7 +6,7 @@ import { CreateEventDialog } from "@/components/events/create-event-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function OverviewPage() {
-  const { events, isLoading } = useEvents();
+  const { events, isLoading, error } = useEvents();
 
   return (
     <div className="space-y-6">
@@ -23,6 +23,11 @@ export default function OverviewPage() {
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-36 rounded-lg" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 text-red-500">
+          <p className="text-lg font-medium">Failed to load events</p>
+          <p className="text-sm mt-1">{error.message ?? "Please try again"}</p>
         </div>
       ) : events.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">

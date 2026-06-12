@@ -19,28 +19,20 @@ import {
 const schema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
-  team_count: z.union([z.coerce.number().int().min(2, "Minimum 2 teams"), z.literal(0)]).pipe(
-    z.number().int().min(2, "Minimum 2 teams")
-  ),
-  participant_limit: z.union([z.coerce.number().int().min(1), z.literal(""), z.undefined()]).transform(
-    (v) => (v === "" || v === undefined ? undefined : Number(v))
-  ).optional(),
+  team_count: z.coerce.number().int().min(2, "Minimum 2 teams"),
+  participant_limit: z.coerce.number().int().min(1).optional(),
 });
 
-type FormData = {
-  title: string;
-  description?: string;
-  team_count: number;
-  participant_limit?: number | string;
-};
+type FormInput = z.input<typeof schema>;
+type FormData = z.output<typeof schema>;
 
 export function CreateEventDialog() {
   const { data: session } = useSession();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema) as never,
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormInput, unknown, FormData>({
+    resolver: zodResolver(schema),
     defaultValues: { team_count: 5 },
   });
 
@@ -49,8 +41,10 @@ export function CreateEventDialog() {
     setLoading(true);
     try {
       const event = await createEvent(session.accessToken, {
-        ...data,
-        participant_limit: data.participant_limit ? Number(data.participant_limit) : undefined,
+        title: data.title,
+        description: data.description,
+        team_count: data.team_count,
+        participant_limit: data.participant_limit,
       });
       setOpen(false);
       reset();

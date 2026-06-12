@@ -35,7 +35,14 @@ export function useEvent(eventId: string | null) {
   return { event: data, error, isLoading };
 }
 
-export async function createEvent(token: string, payload: Partial<Event>) {
+export interface CreateEventPayload {
+  title: string;
+  description?: string;
+  team_count: number;
+  participant_limit?: number;
+}
+
+export async function createEvent(token: string, payload: CreateEventPayload) {
   const result = await fetchAPI<Event>("/api/v1/events", {
     method: "POST",
     body: payload,
