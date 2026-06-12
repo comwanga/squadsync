@@ -13,7 +13,7 @@ _SKILL_MAP = {"beginner": 1, "intermediate": 2, "advanced": 3, "professional": 4
 
 
 def compute_composite_score(years_exp: int, skill_level: str, w_exp: float = 0.5, w_skill: float = 0.5) -> float:
-    e = _EXP_MAP.get(min(years_exp, 6), 4 if years_exp >= 7 else 1)
+    e = 4 if years_exp >= 7 else _EXP_MAP.get(years_exp, 1)
     k = _SKILL_MAP[skill_level]
     return round((w_exp * e) + (w_skill * k), 4)
 
