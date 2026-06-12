@@ -26,23 +26,23 @@ def _build_allocation_out(db: Session, allocation: Allocation) -> AllocationOut:
             .all()
         )
         members_out = [TeamMemberOut.model_validate(m) for m in members_orm]
-        teams_out.append(TeamOut(
-            id=str(team.id),
-            allocation_id=str(team.allocation_id),
-            name=team.name,
-            fairness_score=team.fairness_score,
-            skill_score=team.skill_score,
-            role_balance_score=team.role_balance_score,
-            members=members_out,
-        ))
-    return AllocationOut(
-        id=str(allocation.id),
-        event_id=str(allocation.event_id),
-        snapshot_hash=allocation.snapshot_hash,
-        status=allocation.status,
-        constraint_warnings=allocation.constraint_warnings or {},
-        teams=teams_out,
-    )
+        teams_out.append(TeamOut.model_validate({
+            "id": team.id,
+            "allocation_id": team.allocation_id,
+            "name": team.name,
+            "fairness_score": team.fairness_score,
+            "skill_score": team.skill_score,
+            "role_balance_score": team.role_balance_score,
+            "members": members_out,
+        }))
+    return AllocationOut.model_validate({
+        "id": allocation.id,
+        "event_id": allocation.event_id,
+        "snapshot_hash": allocation.snapshot_hash,
+        "status": allocation.status,
+        "constraint_warnings": allocation.constraint_warnings or {},
+        "teams": teams_out,
+    })
 
 
 @router.get("/{event_id}/config", response_model=AllocationConfigOut)

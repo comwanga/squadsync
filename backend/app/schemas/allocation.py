@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel
 
 
@@ -9,8 +10,8 @@ class AllocationConfigIn(BaseModel):
 
 
 class AllocationConfigOut(BaseModel):
-    id: str
-    event_id: str
+    id: UUID
+    event_id: UUID
     weight_experience: float
     weight_skill: float
     role_constraints: dict
@@ -19,7 +20,7 @@ class AllocationConfigOut(BaseModel):
 
 
 class TeamMemberOut(BaseModel):
-    id: str
+    id: UUID
     name: str
     email: str
     role: str
@@ -30,8 +31,8 @@ class TeamMemberOut(BaseModel):
 
 
 class TeamOut(BaseModel):
-    id: str
-    allocation_id: str
+    id: UUID
+    allocation_id: UUID
     name: str
     fairness_score: Optional[float]
     skill_score: Optional[float]
@@ -42,8 +43,8 @@ class TeamOut(BaseModel):
 
 
 class AllocationOut(BaseModel):
-    id: str
-    event_id: str
+    id: UUID
+    event_id: UUID
     snapshot_hash: str
     status: str
     constraint_warnings: dict
