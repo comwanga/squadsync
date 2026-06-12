@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel, EmailStr
 
 
@@ -14,8 +15,8 @@ class ParticipantRegister(BaseModel):
 
 
 class ParticipantOut(BaseModel):
-    id: str
-    event_id: str
+    id: UUID
+    event_id: UUID
     name: str
     email: str
     phone: Optional[str]
@@ -30,7 +31,7 @@ class ParticipantOut(BaseModel):
 
 
 class EventPublicInfo(BaseModel):
-    id: str
+    id: UUID
     title: str
     description: Optional[str]
     participant_limit: Optional[int]
