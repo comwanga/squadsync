@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, ForeignKey, Enum as SAEnum, DateTime, Text, Uuid
+from sqlalchemy import Column, String, Float, ForeignKey, Enum as SAEnum, DateTime, JSON, Uuid
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -12,7 +12,7 @@ class AllocationConfig(Base):
     event_id = Column(Uuid(as_uuid=True), ForeignKey("events.id"), unique=True, nullable=False)
     weight_experience = Column(Float, nullable=False, default=0.5)
     weight_skill = Column(Float, nullable=False, default=0.5)
-    role_constraints = Column(Text, nullable=False, default="{}")  # JSON-encoded dict
+    role_constraints = Column(JSON, nullable=False, default=dict)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
@@ -27,5 +27,5 @@ class Allocation(Base):
         nullable=False,
         default="draft",
     )
-    constraint_warnings = Column(Text, nullable=False, default="{}")  # JSON-encoded dict
+    constraint_warnings = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

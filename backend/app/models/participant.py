@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SAEnum, DateTime, Text, Uuid
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SAEnum, DateTime, JSON, Uuid
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -25,7 +25,7 @@ class Participant(Base):
         nullable=False,
     )
     years_experience = Column(Integer, nullable=False, default=0)
-    tech_stack = Column(Text, nullable=False, default="[]")  # JSON-encoded list
-    interests = Column(Text, nullable=False, default="[]")   # JSON-encoded list
+    tech_stack = Column(JSON, nullable=False, default=list)
+    interests = Column(JSON, nullable=False, default=list)
     composite_score = Column(Float, nullable=True)
     registered_at = Column(DateTime(timezone=True), server_default=func.now())
