@@ -1,8 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Enum as SAEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Enum as SAEnum, DateTime, Uuid
 from sqlalchemy.sql import func
-from sqlalchemy import DateTime
 
 from app.core.database import Base
 
@@ -10,7 +8,7 @@ from app.core.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=True)

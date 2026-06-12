@@ -1,6 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SAEnum, DateTime, ARRAY
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SAEnum, DateTime, Text, Uuid
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -9,8 +8,8 @@ from app.core.database import Base
 class Participant(Base):
     __tablename__ = "participants"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(Uuid(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     email = Column(String, nullable=False)
     phone = Column(String, nullable=True)
@@ -26,7 +25,7 @@ class Participant(Base):
         nullable=False,
     )
     years_experience = Column(Integer, nullable=False, default=0)
-    tech_stack = Column(ARRAY(String), nullable=False, default=list)
-    interests = Column(ARRAY(String), nullable=False, default=list)
+    tech_stack = Column(Text, nullable=False, default="[]")  # JSON-encoded list
+    interests = Column(Text, nullable=False, default="[]")   # JSON-encoded list
     composite_score = Column(Float, nullable=True)
     registered_at = Column(DateTime(timezone=True), server_default=func.now())
