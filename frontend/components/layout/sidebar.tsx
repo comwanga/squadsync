@@ -36,7 +36,9 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 py-4 space-y-1 px-2">
         {navItems.map(({ label, href, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
+          const active = href === "/dashboard"
+            ? pathname === href
+            : pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
@@ -63,7 +65,9 @@ export function MobileNav() {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-white flex justify-around py-2 z-50">
       {navItems.map(({ label, href, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(href + "/");
+        const active = href === "/dashboard"
+          ? pathname === href
+          : pathname === href || pathname.startsWith(href + "/");
         return (
           <Link
             key={href}
