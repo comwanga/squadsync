@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import QRCode from "react-qr-code";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,28 +11,37 @@ interface QRDisplayProps {
 }
 
 export function QRDisplay({ slug }: QRDisplayProps) {
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-  const url = `${baseUrl}/join/${slug}`;
+  const [url, setUrl] = useState("");
   const qrRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setUrl(`${window.location.origin}/join/${slug}`);
+  }, [slug]);
 
   const downloadQR = () => {
     const svg = qrRef.current?.querySelector("svg");
     if (!svg) return;
     const svgData = new XMLSerializer().serializeToString(svg);
+    // Use encodeURIComponent to handle Unicode safely (avoids btoa limitation)
+    const svgDataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgData)}`;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const img = new Image();
     img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx?.drawImage(img, 0, 0);
+      // Use explicit size (160px matches QRCode size prop) since SVG may report 0 naturalWidth
+      const size = 160;
+      canvas.width = size;
+      canvas.height = size;
+      ctx?.drawImage(img, 0, 0, size, size);
       const a = document.createElement("a");
       a.download = `squadsync-qr-${slug}.png`;
       a.href = canvas.toDataURL("image/png");
       a.click();
     };
-    img.src = `data:image/svg+xml;base64,${btoa(svgData)}`;
+    img.src = svgDataUri;
   };
+
+  if (!url) return null;
 
   return (
     <Card>

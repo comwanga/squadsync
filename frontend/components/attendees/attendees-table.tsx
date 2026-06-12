@@ -43,6 +43,8 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
     ([path, q, token]) => fetchAPI<Participant[]>(`${path}?${q}`, { token })
   );
 
+  // Role/skill filters are server-side (query params); name/email search is client-side
+  // within the current filtered set.
   const filtered = participants.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.email.toLowerCase().includes(search.toLowerCase())

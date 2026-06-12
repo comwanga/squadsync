@@ -4,6 +4,7 @@ import { use } from "react";
 import { useEvent } from "@/hooks/use-events";
 import { AttendeesTable } from "@/components/attendees/attendees-table";
 import { QRDisplay } from "@/components/attendees/qr-display";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AttendeesPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -20,7 +21,11 @@ export default function AttendeesPage({ params }: { params: Promise<{ eventId: s
           <AttendeesTable eventId={eventId} />
         </div>
         <div>
-          {event && <QRDisplay slug={event.registration_slug} />}
+          {event ? (
+            <QRDisplay slug={event.registration_slug} />
+          ) : (
+            <Skeleton className="h-64 rounded-lg" />
+          )}
         </div>
       </div>
     </div>
