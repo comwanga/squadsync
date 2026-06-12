@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel
 
 
@@ -18,8 +19,8 @@ class EventUpdate(BaseModel):
 
 
 class EventOut(BaseModel):
-    id: str
-    owner_id: str
+    id: UUID
+    owner_id: UUID
     title: str
     description: Optional[str]
     participant_limit: Optional[int]
