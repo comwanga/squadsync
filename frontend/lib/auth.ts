@@ -28,28 +28,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ account, user }) {
+    async jwt({ token, user, account }) {
       if (account?.provider === "google") {
+        if (!account.id_token) return token;
         try {
           const res = await fetchAPI<{ access_token: string }>("/auth/google", {
             method: "POST",
             body: { token: account.id_token },
           });
-          (user as Record<string, unknown>).accessToken = res.access_token;
+          token.accessToken = res.access_token;
         } catch {
-          return false;
+          // token.accessToken remains undefined; session will reflect this
         }
-      }
-      return true;
-    },
-    async jwt({ token, user }) {
-      if (user) {
-        token.accessToken = (user as Record<string, unknown>).accessToken as string;
+      } else if (user?.accessToken) {
+        token.accessToken = user.accessToken;
       }
       return token;
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken as string;
+      session.accessToken = token.accessToken;
       return session;
     },
   },
