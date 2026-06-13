@@ -71,7 +71,7 @@ def delete_event(db: Session, event_id: UUID, user_id: UUID) -> Event:
 
 def invite_co_organizer(db: Session, event_id: UUID, user_id: UUID, req: CoOrganizerInvite) -> None:
     _assert_organizer(db, event_id, user_id)
-    invitee = db.query(User).filter(User.email == req.email).first()
+    invitee = db.query(User).filter(User.pubkey == req.pubkey).first()
     if not invitee:
         raise HTTPException(status_code=404, detail="User not found")
     existing = db.query(EventCoOrganizer).filter(

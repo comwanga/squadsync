@@ -34,7 +34,7 @@ def db():
 
 @pytest.fixture
 def owner(db):
-    u = User(name="Owner", email="owner@test.com", provider="local", hashed_password="x")
+    u = User(pubkey="a" * 64)
     db.add(u)
     db.commit()
     return u

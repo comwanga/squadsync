@@ -1,3 +1,7 @@
+from coincurve import PrivateKey
+from tests.conftest import make_nostr_event
+
+
 def test_create_event(client, auth_headers):
     res = client.post("/api/v1/events", headers=auth_headers, json={
         "title": "Hackathon 2026",
@@ -44,25 +48,31 @@ def test_delete_event_archives_it(client, auth_headers):
     assert detail["status"] == "archived"
 
 
+def _make_user(client):
+    privkey = PrivateKey()
+    pubkey = privkey.public_key.format(compressed=True)[1:].hex()
+    event = make_nostr_event(privkey)
+    res = client.post("/auth/nostr", json={"pubkey": pubkey, "event": event})
+    token = res.json()["access_token"]
+    return pubkey, {"Authorization": f"Bearer {token}"}
+
+
 def test_invite_co_organizer(client, auth_headers):
-    # Register second user
-    client.post("/auth/register", json={"name": "Bob", "email": "bob@example.com", "password": "pass123"})
+    bob_pubkey, _ = _make_user(client)
     created = client.post("/api/v1/events", headers=auth_headers, json={"title": "E1", "team_count": 5}).json()
     res = client.post(
         f"/api/v1/events/{created['id']}/co-organizers",
         headers=auth_headers,
-        json={"email": "bob@example.com"}
+        json={"pubkey": bob_pubkey}
     )
     assert res.status_code == 200
 
 
 def test_co_organizer_can_view_event(client, auth_headers):
-    client.post("/auth/register", json={"name": "Bob", "email": "bob@example.com", "password": "pass123"})
-    bob_token = client.post("/auth/login", json={"email": "bob@example.com", "password": "pass123"}).json()["access_token"]
-    bob_headers = {"Authorization": f"Bearer {bob_token}"}
+    bob_pubkey, bob_headers = _make_user(client)
 
     created = client.post("/api/v1/events", headers=auth_headers, json={"title": "E1", "team_count": 5}).json()
-    client.post(f"/api/v1/events/{created['id']}/co-organizers", headers=auth_headers, json={"email": "bob@example.com"})
+    client.post(f"/api/v1/events/{created['id']}/co-organizers", headers=auth_headers, json={"pubkey": bob_pubkey})
 
     res = client.get(f"/api/v1/events/{created['id']}", headers=bob_headers)
     assert res.status_code == 200

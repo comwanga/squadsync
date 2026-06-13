@@ -30,7 +30,7 @@ export function Topbar() {
   const displayId = npub ? truncateNpub(npub) : session?.pubkey?.slice(0, 12) ?? "…";
 
   return (
-    <header className="h-16 border-b bg-white flex items-center justify-between px-6">
+    <header className="h-16 border-b bg-white dark:bg-slate-900 dark:border-slate-700 flex items-center justify-between px-6">
       <div className="md:hidden font-bold text-primary text-lg">SquadSync</div>
       <div className="flex-1" />
       <div className="flex items-center gap-2">

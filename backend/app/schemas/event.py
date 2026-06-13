@@ -32,4 +32,4 @@ class EventOut(BaseModel):
 
 
 class CoOrganizerInvite(BaseModel):
-    email: str
+    pubkey: str
