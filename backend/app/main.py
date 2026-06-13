@@ -1,17 +1,19 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import engine, Base
 from app.api.v1 import auth, events, participants, allocation, teams, export
 import app.models  # noqa: F401
 
-app = FastAPI(title="SquadSync API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    yield
 
 
-@app.on_event("startup")
-def create_tables() -> None:
-    Base.metadata.create_all(bind=engine)
+app = FastAPI(title="SquadSync API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

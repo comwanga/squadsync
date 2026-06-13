@@ -25,3 +25,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Logs & artifacts
+*.log
+vitest-output.txt
+screenshots/
+
