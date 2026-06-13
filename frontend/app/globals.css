@@ -1,26 +1,49 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ── Theme tokens ── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-card: var(--card-bg);
+  --color-card-foreground: var(--fg);
+  --color-muted: var(--muted-bg);
+  --color-muted-foreground: var(--muted-fg);
+  --color-border: var(--border-color);
+  --color-input: var(--border-color);
+  --color-ring: var(--primary-color);
+  --color-primary: var(--primary-color);
+  --color-primary-foreground: var(--primary-fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Light theme ── */
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --fg: #0f172a;
+  --card-bg: #ffffff;
+  --muted-bg: #f1f5f9;
+  --muted-fg: #64748b;
+  --border-color: #e2e8f0;
+  --primary-color: #3b82f6;
+  --primary-fg: #ffffff;
+}
+
+/* ── Dark theme ── */
+.dark {
+  color-scheme: dark;
+  --bg: #0f172a;
+  --fg: #f1f5f9;
+  --card-bg: #1e293b;
+  --muted-bg: #1e293b;
+  --muted-fg: #94a3b8;
+  --border-color: #334155;
+  --primary-color: #60a5fa;
+  --primary-fg: #0f172a;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--fg);
   font-family: Arial, Helvetica, sans-serif;
 }

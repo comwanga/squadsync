@@ -1,4 +1,9 @@
+import hashlib
+import json
+import time
+
 import pytest
+from coincurve import PrivateKey
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -10,6 +15,26 @@ SQLALCHEMY_TEST_URL = "sqlite:///./test_squadsync.db"
 
 engine = create_engine(SQLALCHEMY_TEST_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def make_nostr_event(privkey: PrivateKey, url: str = "http://testserver/auth/nostr") -> dict:
+    pubkey = privkey.public_key.format(compressed=True)[1:].hex()
+    event = {
+        "pubkey": pubkey,
+        "created_at": int(time.time()),
+        "kind": 27235,
+        "tags": [["u", url], ["method", "POST"]],
+        "content": "",
+    }
+    serialized = json.dumps(
+        [0, event["pubkey"], event["created_at"], event["kind"], event["tags"], event["content"]],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    event_id = hashlib.sha256(serialized.encode()).hexdigest()
+    event["id"] = event_id
+    event["sig"] = privkey.sign_schnorr(bytes.fromhex(event_id)).hex()
+    return event
 
 
 @pytest.fixture(autouse=True)
@@ -45,17 +70,15 @@ def client():
 
 
 @pytest.fixture
-def registered_user(client):
-    client.post("/auth/register", json={
-        "name": "Test User",
-        "email": "test@example.com",
-        "password": "password123"
-    })
-    return {"email": "test@example.com", "password": "password123"}
+def nostr_privkey():
+    return PrivateKey()
 
 
 @pytest.fixture
-def auth_headers(client, registered_user):
-    res = client.post("/auth/login", json=registered_user)
+def auth_headers(client, nostr_privkey):
+    pubkey = nostr_privkey.public_key.format(compressed=True)[1:].hex()
+    event = make_nostr_event(nostr_privkey)
+    res = client.post("/auth/nostr", json={"pubkey": pubkey, "event": event})
+    assert res.status_code == 200
     token = res.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

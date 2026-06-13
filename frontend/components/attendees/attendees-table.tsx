@@ -86,34 +86,36 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b">
-              <tr>
-                {["Name", "Email", "Role", "Skill", "Exp.", "Score"].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No participants found</td></tr>
-              ) : filtered.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium">{p.name}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.email}</td>
-                  <td className="px-4 py-3 capitalize">{p.role}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${skillColor[p.skill_level]}`}>
-                      {p.skill_level}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">{p.years_experience}y</td>
-                  <td className="px-4 py-3 font-mono">{p.composite_score?.toFixed(2) ?? "—"}</td>
+        <div className="border dark:border-slate-700 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800 border-b dark:border-slate-700">
+                <tr>
+                  {["Name", "Email", "Role", "Skill", "Exp.", "Score"].map(h => (
+                    <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y dark:divide-slate-700">
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No participants found</td></tr>
+                ) : filtered.map(p => (
+                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="px-4 py-3 font-medium whitespace-nowrap">{p.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.email}</td>
+                    <td className="px-4 py-3 capitalize whitespace-nowrap">{p.role}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${skillColor[p.skill_level]}`}>
+                        {p.skill_level}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">{p.years_experience}y</td>
+                    <td className="px-4 py-3 font-mono whitespace-nowrap">{p.composite_score?.toFixed(2) ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       <p className="text-xs text-muted-foreground">{filtered.length} participant{filtered.length !== 1 ? "s" : ""}</p>
