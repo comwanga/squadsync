@@ -30,6 +30,13 @@ jobs:
           DATABASE_URL: sqlite:///./test.db
           SECRET_KEY: ci-secret-key
 
+      - name: Verify migration
+        run: python -m alembic upgrade head
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///./migration-check.db
+          SECRET_KEY: ci-secret-key
+
   frontend:
     name: Frontend (Node)
     runs-on: ubuntu-latest
@@ -51,3 +58,16 @@ jobs:
         working-directory: frontend
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      - name: Run tests
+        run: npm test
+        working-directory: frontend
+
+  docker:
+    name: Docker Build (Backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build ./backend
