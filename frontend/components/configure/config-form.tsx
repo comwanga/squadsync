@@ -19,7 +19,7 @@ const ROLES = ["frontend","backend","fullstack","ai_ml","ux","devops","blockchai
 interface Constraint { role: string; min: number; }
 
 export function ConfigForm({ eventId }: { eventId: string }) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { config, isLoading } = useAllocationConfig(eventId);
   const [wExp, setWExp] = useState(0.5);
   const [constraints, setConstraints] = useState<Constraint[]>([]);
@@ -60,7 +60,7 @@ export function ConfigForm({ eventId }: { eventId: string }) {
     }
   };
 
-  if (isLoading) return <div className="animate-pulse h-64 bg-slate-100 rounded-lg" />;
+  if (status === "loading" || isLoading) return <div className="animate-pulse h-64 bg-slate-100 rounded-lg" />;
 
   return (
     <div className="space-y-6 max-w-xl">
