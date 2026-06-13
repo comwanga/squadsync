@@ -1,12 +1,5 @@
-import Link from "next/link";
-import { LoginForm } from "@/components/auth/login-form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NostrConnect } from "@/components/auth/nostr-connect";
 
 export default function LoginPage() {
   return (
@@ -14,19 +7,12 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">SquadSync</CardTitle>
-          <CardDescription>Sign in to your organizer account</CardDescription>
+          <CardDescription>
+            No account needed — connect with your Nostr identity
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <LoginForm />
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            No account?{" "}
-            <Link
-              href="/register"
-              className="text-primary font-medium hover:underline"
-            >
-              Create one
-            </Link>
-          </p>
+          <NostrConnect />
         </CardContent>
       </Card>
     </div>

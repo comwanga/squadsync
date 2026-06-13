@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Bell, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
+function truncateNpub(npub: string): string {
+  return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
+}
+
 export function Topbar() {
   const { data: session } = useSession();
+  const [npub, setNpub] = useState<string>("");
+
+  useEffect(() => {
+    if (session?.pubkey) {
+      import("nostr-tools/nip19").then(({ npubEncode }) => {
+        const encoded = npubEncode(session.pubkey!);
+        setNpub(encoded);
+      });
+    }
+  }, [session?.pubkey]);
+
+  const displayId = npub ? truncateNpub(npub) : session?.pubkey?.slice(0, 12) ?? "…";
 
   return (
     <header className="h-16 border-b bg-white flex items-center justify-between px-6">
@@ -25,18 +42,18 @@ export function Topbar() {
             <Button variant="ghost" size="icon">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="text-xs">
-                  {session?.user?.name?.[0]?.toUpperCase() ?? "U"}
+                  {session?.pubkey?.[0]?.toUpperCase() ?? "N"}
                 </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-sm text-muted-foreground" disabled>
-              {session?.user?.email}
+            <DropdownMenuItem className="text-xs text-muted-foreground font-mono" disabled>
+              {displayId}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
               <LogOut className="mr-2 h-4 w-4" />
-              Sign out
+              Disconnect
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -1,19 +1,11 @@
-from pydantic import BaseModel, EmailStr
+import uuid as _uuid
+
+from pydantic import BaseModel, field_validator
 
 
-class RegisterRequest(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class GoogleAuthRequest(BaseModel):
-    token: str  # Google ID token
+class NostrAuthRequest(BaseModel):
+    pubkey: str
+    event: dict
 
 
 class TokenResponse(BaseModel):
@@ -23,8 +15,11 @@ class TokenResponse(BaseModel):
 
 class UserOut(BaseModel):
     id: str
-    name: str
-    email: str
-    provider: str
+    pubkey: str
 
     model_config = {"from_attributes": True}
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def coerce_uuid(cls, v: object) -> str:
+        return str(v)

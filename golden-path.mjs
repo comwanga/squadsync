@@ -1,14 +1,42 @@
 import { chromium } from "playwright";
+import { generateSecretKey, getPublicKey, finalizeEvent } from "nostr-tools";
+import { nsecEncode } from "nostr-tools/nip19";
 
 const BASE = "http://localhost:3001";
 const API  = "http://localhost:8000";
-const EMAIL = `test${Date.now()}@squadsync.dev`;
-const PASS  = "TestPass123!";
+
+// Generate a fresh Nostr identity for this test run
+const SK   = generateSecretKey();
+const PK   = getPublicKey(SK);
+const NSEC = nsecEncode(SK);
 
 async function screenshot(page, name) {
   const p = `C:/Users/mwang/squadsync/screenshots/${name}.png`;
   await page.screenshot({ path: p, fullPage: false });
   console.log(`  📸 ${name}.png`);
+}
+
+async function getApiToken() {
+  const event = finalizeEvent(
+    {
+      kind: 27235,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [["u", `${API}/auth/nostr`], ["method", "POST"]],
+      content: "",
+    },
+    SK
+  );
+  const res = await fetch(`${API}/auth/nostr`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pubkey: PK, event }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`/auth/nostr failed ${res.status}: ${body}`);
+  }
+  const { access_token } = await res.json();
+  return access_token;
 }
 
 async function main() {
@@ -19,30 +47,27 @@ async function main() {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
 
-  // ── 1. Register ─────────────────────────────────────────────────────────────
-  console.log("\n1. Register new organizer account");
-  await page.goto(`${BASE}/register`);
+  // ── 1. Login via Nostr ──────────────────────────────────────────────────────
+  console.log("\n1. Login with Nostr identity (paste nsec flow)");
+  await page.goto(`${BASE}/login`);
   await page.waitForLoadState("domcontentloaded");
-  await screenshot(page, "01-register-page");
+  await screenshot(page, "01-login-page");
 
-  await page.fill('input[id="name"]', "Test Organizer");
-  await page.fill('input[id="email"]', EMAIL);
-  await page.fill('input[id="password"]', PASS);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(`${BASE}/dashboard`, { timeout: 10000 });
-  // Force a full navigation so Root Layout re-runs auth() with the new session cookie
+  await page.fill('input[id="nsec"]', NSEC);
+  await page.click('button:has-text("Connect with nsec key")');
+  await page.waitForURL(`${BASE}/dashboard`, { timeout: 15000 });
+  // Force full navigation so Root Layout re-runs auth() with new session cookie
   await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
-  console.log("  ✓ Registered and redirected to dashboard");
-  await screenshot(page, "02-dashboard-after-register");
+  console.log("  ✓ Logged in and redirected to dashboard");
+  await screenshot(page, "02-dashboard-after-login");
 
   // ── 2. Dashboard overview ────────────────────────────────────────────────────
   console.log("\n2. Dashboard overview");
   await page.waitForSelector('h1:has-text("Overview")', { timeout: 10000 });
-  // Wait for the session API to resolve so session.accessToken is in useSession()
   await page.waitForResponse(resp => resp.url().includes("/api/auth/session"), { timeout: 10000 }).catch(() => {});
   await screenshot(page, "03-overview");
 
-  // ── 3. Create event ─────────────────────────────────────────────────────────
+  // ── 3. Create event ──────────────────────────────────────────────────────────
   console.log("\n3. Create an event");
   await page.click('button:has-text("New Event")');
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 });
@@ -57,14 +82,9 @@ async function main() {
   console.log(`  ✓ Created event ${eventId}`);
   await screenshot(page, "05-event-dashboard");
 
-  // ── 4. Activate event via API so registration works ─────────────────────────
+  // ── 4. Activate event via API ────────────────────────────────────────────────
   console.log("\n4. Activate event via API");
-  const loginRes = await fetch(`${API}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: EMAIL, password: PASS }),
-  });
-  const { access_token } = await loginRes.json();
+  const access_token = await getApiToken();
   await fetch(`${API}/api/v1/events/${eventId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${access_token}` },
@@ -72,7 +92,7 @@ async function main() {
   });
   console.log("  ✓ Event set to active");
 
-  // ── 5. Attendees page + QR ──────────────────────────────────────────────────
+  // ── 5. Attendees page + QR ───────────────────────────────────────────────────
   console.log("\n5. Attendees page + QR code");
   await page.click('a:has-text("Go")');
   await page.waitForURL(/\/attendees/, { timeout: 5000 }).catch(async () => {
@@ -89,8 +109,8 @@ async function main() {
   const slug = eventData.registration_slug;
   console.log(`  ✓ Slug: ${slug}`);
 
-  // ── 6. Register participants via public form ─────────────────────────────────
-  console.log("\n6. Register 6 participants via public form");
+  // ── 6. Register participants ─────────────────────────────────────────────────
+  console.log("\n6. Register 6 participants via API");
   const participants = [
     { name: "Alice A", email: "alice@test.com", skill: "advanced", role: "frontend", years: 5 },
     { name: "Bob B", email: "bob@test.com", skill: "intermediate", role: "backend", years: 3 },
@@ -99,15 +119,11 @@ async function main() {
     { name: "Eve E", email: "eve@test.com", skill: "advanced", role: "ai_ml", years: 4 },
     { name: "Frank F", email: "frank@test.com", skill: "intermediate", role: "devops", years: 3 },
   ];
-
   for (const p of participants) {
     await fetch(`${API}/api/v1/events/${slug}/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: p.name, email: p.email, skill_level: p.skill,
-        role: p.role, years_experience: p.years,
-      }),
+      body: JSON.stringify({ name: p.name, email: p.email, skill_level: p.skill, role: p.role, years_experience: p.years }),
     });
   }
   console.log("  ✓ 6 participants registered via API");

@@ -1,52 +1,45 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
 import { fetchAPI } from "@/lib/api";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        pubkey: { label: "Public Key", type: "text" },
+        signedEvent: { label: "Signed Event", type: "text" },
       },
       async authorize(credentials) {
         try {
-          const res = await fetchAPI<{ access_token: string }>("/auth/login", {
+          const res = await fetchAPI<{ access_token: string }>("/auth/nostr", {
             method: "POST",
-            body: { email: credentials.email, password: credentials.password },
+            body: {
+              pubkey: credentials.pubkey,
+              event: JSON.parse(credentials.signedEvent as string),
+            },
           });
-          return { id: res.access_token, accessToken: res.access_token };
+          return {
+            id: res.access_token,
+            accessToken: res.access_token,
+            pubkey: credentials.pubkey as string,
+          };
         } catch {
           return null;
         }
       },
     }),
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
   ],
   callbacks: {
-    async jwt({ token, user, account }) {
-      if (account?.provider === "google") {
-        if (!account.id_token) return token;
-        try {
-          const res = await fetchAPI<{ access_token: string }>("/auth/google", {
-            method: "POST",
-            body: { token: account.id_token },
-          });
-          token.accessToken = res.access_token;
-        } catch {
-          // token.accessToken remains undefined; session will reflect this
-        }
-      } else if (user?.accessToken) {
+    async jwt({ token, user }) {
+      if (user?.accessToken) {
         token.accessToken = user.accessToken;
+        token.pubkey = user.pubkey;
       }
       return token;
     },
     async session({ session, token }) {
       session.accessToken = token.accessToken;
+      session.pubkey = token.pubkey as string | undefined;
       return session;
     },
   },

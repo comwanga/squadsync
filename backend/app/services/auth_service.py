@@ -1,51 +1,54 @@
+import hashlib
+import json
+import time
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password, verify_password, create_access_token
-from app.core.config import settings
+from app.core.security import create_access_token
 from app.models.user import User
-from app.schemas.auth import RegisterRequest, LoginRequest
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
+from app.schemas.auth import NostrAuthRequest
 
 
-def register_user(db: Session, req: RegisterRequest) -> str:
-    existing = db.query(User).filter(User.email == req.email).first()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-    user = User(
-        name=req.name,
-        email=req.email,
-        hashed_password=hash_password(req.password),
-        provider="local",
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return create_access_token(str(user.id))
+def verify_nostr_event(event: dict) -> bool:
+    """Verify NIP-98 kind-27235 event: recompute ID then check BIP340 Schnorr sig."""
+    try:
+        serialized = json.dumps(
+            [0, event["pubkey"], event["created_at"], event["kind"], event["tags"], event["content"]],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        computed_id = hashlib.sha256(serialized.encode()).hexdigest()
+        if event.get("id") != computed_id:
+            return False
+
+        from coincurve import PublicKeyXOnly
+        pub = PublicKeyXOnly(bytes.fromhex(event["pubkey"]))
+        return pub.verify(bytes.fromhex(event["sig"]), bytes.fromhex(computed_id))
+    except Exception:
+        return False
 
 
-def login_user(db: Session, req: LoginRequest) -> str:
-    user = db.query(User).filter(User.email == req.email).first()
-    if not user or not user.hashed_password or not verify_password(req.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    return create_access_token(str(user.id))
+def nostr_login(db: Session, req: NostrAuthRequest) -> str:
+    event = req.event
 
+    if event.get("kind") != 27235:
+        raise HTTPException(status_code=400, detail="Invalid event kind (expected 27235)")
 
-def verify_google_token(token: str) -> dict:
-    return id_token.verify_oauth2_token(token, google_requests.Request(), settings.GOOGLE_CLIENT_ID)
+    if event.get("pubkey") != req.pubkey:
+        raise HTTPException(status_code=400, detail="Pubkey mismatch")
 
+    if abs(time.time() - event.get("created_at", 0)) > 60:
+        raise HTTPException(status_code=400, detail="Event expired")
 
-def google_login(db: Session, token: str) -> str:
-    idinfo = verify_google_token(token)
-    google_sub = idinfo["sub"]
-    email = idinfo["email"]
-    name = idinfo.get("name", email)
+    if not verify_nostr_event(event):
+        raise HTTPException(status_code=401, detail="Invalid Nostr signature")
 
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.pubkey == req.pubkey).first()
     if not user:
-        user = User(name=name, email=email, provider="google", provider_id=google_sub)
+        user = User(pubkey=req.pubkey)
         db.add(user)
         db.commit()
         db.refresh(user)
+
     return create_access_token(str(user.id))
