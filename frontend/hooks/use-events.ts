@@ -51,3 +51,14 @@ export async function createEvent(token: string, payload: CreateEventPayload) {
   mutate(["/api/v1/events", token]);
   return result;
 }
+
+export async function updateEvent(token: string, eventId: string, payload: Partial<CreateEventPayload & { status: string }>) {
+  const result = await fetchAPI<Event>(`/api/v1/events/${eventId}`, {
+    method: "PATCH",
+    body: payload,
+    token,
+  });
+  mutate([`/api/v1/events/${eventId}`, token]);
+  mutate(["/api/v1/events", token]);
+  return result;
+}
