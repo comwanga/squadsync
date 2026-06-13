@@ -2,9 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.database import engine, Base
 from app.api.v1 import auth, events, participants, allocation, teams, export
+import app.models  # noqa: F401
 
 app = FastAPI(title="SquadSync API", version="1.0.0")
+
+
+@app.on_event("startup")
+def create_tables() -> None:
+    Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,

@@ -20,7 +20,10 @@ const schema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   team_count: z.coerce.number().int().min(2, "Minimum 2 teams"),
-  participant_limit: z.coerce.number().int().min(1).optional(),
+  participant_limit: z.preprocess(
+    val => (val === "" || val === null || val === undefined ? undefined : val),
+    z.coerce.number().int().min(1).optional()
+  ),
 });
 
 type FormInput = z.input<typeof schema>;

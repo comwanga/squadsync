@@ -17,8 +17,9 @@ async function getEvent(slug: string): Promise<EventInfo | null> {
   }
 }
 
-export default async function JoinPage({ params }: { params: { slug: string } }) {
-  const event = await getEvent(params.slug);
+export default async function JoinPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const event = await getEvent(slug);
 
   if (!event) {
     return (
@@ -57,7 +58,7 @@ export default async function JoinPage({ params }: { params: { slug: string } })
           {event.description && <CardDescription>{event.description}</CardDescription>}
         </CardHeader>
         <CardContent>
-          <RegistrationForm event={event} slug={params.slug} />
+          <RegistrationForm event={event} slug={slug} />
         </CardContent>
       </Card>
     </div>

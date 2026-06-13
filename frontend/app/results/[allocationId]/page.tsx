@@ -19,8 +19,9 @@ async function getAllocation(id: string): Promise<AllocationResult | null> {
   }
 }
 
-export default async function ResultsPage({ params }: { params: { allocationId: string } }) {
-  const result = await getAllocation(params.allocationId);
+export default async function ResultsPage({ params }: { params: Promise<{ allocationId: string }> }) {
+  const { allocationId } = await params;
+  const result = await getAllocation(allocationId);
 
   if (!result) {
     return (
