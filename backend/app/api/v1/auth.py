@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -10,8 +10,8 @@ router = APIRouter()
 
 
 @router.post("/nostr", response_model=TokenResponse)
-def nostr_auth(req: NostrAuthRequest, db: Session = Depends(get_db)):
-    token = nostr_login(db, req)
+def nostr_auth(req: NostrAuthRequest, request: Request, db: Session = Depends(get_db)):
+    token = nostr_login(db, req, str(request.url))
     return TokenResponse(access_token=token)
 
 

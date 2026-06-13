@@ -63,6 +63,32 @@ def test_nostr_login_invalid_signature(client):
     assert res.status_code == 401
 
 
+def test_nostr_login_wrong_url_tag(client):
+    privkey = PrivateKey()
+    pubkey = privkey.public_key.format(compressed=True)[1:].hex()
+    event = make_nostr_event(privkey, url="https://evil.com/auth")
+    res = client.post("/auth/nostr", json={"pubkey": pubkey, "event": event})
+    assert res.status_code == 401
+
+
+def test_nostr_login_wrong_method_tag(client):
+    privkey = PrivateKey()
+    pubkey = privkey.public_key.format(compressed=True)[1:].hex()
+    event = make_nostr_event(privkey)
+    # Replace method tag with GET
+    event["tags"] = [t if t[0] != "method" else ["method", "GET"] for t in event["tags"]]
+    # Recompute id/sig with modified tags
+    serialized = json.dumps(
+        [0, event["pubkey"], event["created_at"], event["kind"], event["tags"], event["content"]],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    event["id"] = hashlib.sha256(serialized.encode()).hexdigest()
+    event["sig"] = privkey.sign_schnorr(bytes.fromhex(event["id"])).hex()
+    res = client.post("/auth/nostr", json={"pubkey": pubkey, "event": event})
+    assert res.status_code == 401
+
+
 def test_protected_route_without_token(client):
     res = client.get("/api/v1/events")
     assert res.status_code == 401
