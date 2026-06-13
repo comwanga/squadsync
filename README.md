@@ -24,10 +24,28 @@ Intelligent team formation for hackathons, workshops, and events. No account req
 
 ```bash
 cd backend
+
+# 1. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+
+# 2. Install dependencies (coincurve requires gcc/build-essential on Linux)
 pip install -r requirements.txt
-cp .env.example .env   # set DATABASE_URL and SECRET_KEY
+
+# 3. Configure environment
+cp .env.example .env
+# Minimum required values in .env:
+#   DATABASE_URL=sqlite:///./squadsync.db   ← default, works out of the box
+#   SECRET_KEY=any-random-string
+
+# 4. Run database migrations (required before first start)
+alembic upgrade head
+
+# 5. Start the server
 uvicorn app.main:app --reload
 ```
+
+The API runs at `http://localhost:8000`. Check `http://localhost:8000/health` to confirm.
 
 ### Frontend
 
