@@ -39,7 +39,7 @@ cp .env.example .env
 #   SECRET_KEY=any-random-string
 
 # 4. Run database migrations (required before first start)
-alembic upgrade head
+python -m alembic upgrade head
 
 # 5. Start the server
 uvicorn app.main:app --reload
