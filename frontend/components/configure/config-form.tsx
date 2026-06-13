@@ -25,6 +25,7 @@ export function ConfigForm({ eventId }: { eventId: string }) {
   const [constraints, setConstraints] = useState<Constraint[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (config) {
       setWExp(config.weight_experience);
@@ -32,7 +33,7 @@ export function ConfigForm({ eventId }: { eventId: string }) {
         Object.entries(config.role_constraints).map(([role, min]) => ({ role, min: min as number }))
       );
     }
-  }, [config]);
+  }, [config?.weight_experience, config?.weight_skill, JSON.stringify(config?.role_constraints)]);
 
   const wSkill = Math.round((1 - wExp) * 100) / 100;
 
@@ -83,7 +84,7 @@ export function ConfigForm({ eventId }: { eventId: string }) {
               <span className="text-sm font-mono">{(wSkill * 100).toFixed(0)}%</span>
             </div>
             <Slider value={[wSkill * 100]} min={10} max={90} step={5} disabled className="opacity-60" />
-            <p className="text-xs text-muted-foreground">Skill weight is automatically set to complement experience weight</p>
+            <p className="text-xs text-muted-foreground">Auto-calculated as 100% minus the value above</p>
           </div>
         </CardContent>
       </Card>
