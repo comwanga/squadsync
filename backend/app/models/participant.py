@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SAEnum, DateTime, JSON, Uuid, UniqueConstraint
+from sqlalchemy import Column, String, Float, ForeignKey, Enum as SAEnum, DateTime, JSON, Uuid, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -16,18 +16,21 @@ class Participant(Base):
     name = Column(String, nullable=False)
     email = Column(String, nullable=False)
     phone = Column(String, nullable=True)
-    skill_level = Column(
-        SAEnum("beginner", "intermediate", "advanced", "professional", name="skill_level"),
+    experience_level = Column(
+        SAEnum("beginner", "intermediate", "advanced", name="experience_level"),
         nullable=False,
     )
-    role = Column(
+    primary_strength = Column(
         SAEnum(
-            "frontend", "backend", "fullstack", "ai_ml", "ux", "devops",
-            "blockchain", "mobile", "product", "marketing", name="participant_role",
+            "technical", "design", "planning", "coordination",
+            "communication", "research", "domain_expert", "other",
+            name="primary_strength",
         ),
         nullable=False,
     )
-    years_experience = Column(Integer, nullable=False, default=0)
+    strength_other = Column(String, nullable=True)
+    normalized_strength = Column(String, nullable=True)
+    strength_source = Column(String, nullable=False, default="preset")
     tech_stack = Column(JSON, nullable=False, default=list)
     interests = Column(JSON, nullable=False, default=list)
     composite_score = Column(Float, nullable=True)
