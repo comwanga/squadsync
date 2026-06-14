@@ -21,15 +21,15 @@ def published_allocation(client, auth_headers):
     event = client.post("/api/v1/events", headers=auth_headers, json={"title": "H2026", "team_count": 2}).json()
     client.patch(f"/api/v1/events/{event['id']}", headers=auth_headers, json={"status": "active"})
     slug = event["registration_slug"]
-    for i, (skill, role, years) in enumerate([
-        ("advanced", "frontend", 4),
-        ("intermediate", "backend", 2),
-        ("beginner", "ux", 0),
-        ("professional", "fullstack", 8),
+    for i, (experience, strength) in enumerate([
+        ("advanced", "technical"),
+        ("intermediate", "technical"),
+        ("beginner", "design"),
+        ("advanced", "coordination"),
     ]):
         client.post(f"/api/v1/events/{slug}/register", json={
             "name": f"Person{i}", "email": f"p{i}@test.com",
-            "skill_level": skill, "role": role, "years_experience": years,
+            "primary_strength": strength, "experience_level": experience,
         })
     alloc = client.post(f"/api/v1/events/{event['id']}/allocate", headers=auth_headers).json()
     client.post(f"/api/v1/events/{event['id']}/allocations/{alloc['id']}/publish", headers=auth_headers)
@@ -74,7 +74,7 @@ def test_public_allocation_draft_is_404(client, auth_headers):
     for i in range(2):
         client.post(f"/api/v1/events/{slug}/register", json={
             "name": f"P{i}", "email": f"d{i}@test.com",
-            "skill_level": "beginner", "role": "frontend", "years_experience": 0,
+            "primary_strength": "technical", "experience_level": "beginner",
         })
     alloc = client.post(f"/api/v1/events/{event['id']}/allocate", headers=auth_headers).json()
     # Not published -> must not be publicly readable
@@ -91,7 +91,7 @@ def test_publish_closes_registration(client, auth_headers, published_allocation)
     # Registration now rejected
     res = client.post(f"/api/v1/events/{slug}/register", json={
         "name": "Late", "email": "late@test.com",
-        "skill_level": "beginner", "role": "frontend", "years_experience": 0,
+        "primary_strength": "technical", "experience_level": "beginner",
     })
     assert res.status_code == 400
 

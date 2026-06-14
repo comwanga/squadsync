@@ -7,16 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.event import Event
 from app.models.participant import Participant
 from app.schemas.participant import ParticipantRegister
-
-
-_EXP_MAP = {0: 1, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 3}
-_SKILL_MAP = {"beginner": 1, "intermediate": 2, "advanced": 3, "professional": 4}
-
-
-def compute_composite_score(years_exp: int, skill_level: str, w_exp: float = 0.5, w_skill: float = 0.5) -> float:
-    e = 4 if years_exp >= 7 else _EXP_MAP.get(years_exp, 1)
-    k = _SKILL_MAP[skill_level]
-    return round((w_exp * e) + (w_skill * k), 4)
+from app.services.allocation_engine import compute_composite_score
 
 
 def get_public_event(db: Session, slug: str) -> Event:
@@ -46,10 +37,13 @@ def register_participant(db: Session, slug: str, req: ParticipantRegister) -> Pa
         if count >= event.participant_limit:
             raise HTTPException(status_code=400, detail="Event is full")
 
-    score = compute_composite_score(req.years_experience, req.skill_level)
+    is_preset = req.primary_strength != "other"
+    score = compute_composite_score(req.experience_level)
     participant = Participant(
         event_id=event.id,
         composite_score=score,
+        normalized_strength=req.primary_strength if is_preset else None,
+        strength_source="preset",
         **req.model_dump(),
     )
     db.add(participant)
@@ -63,14 +57,14 @@ def register_participant(db: Session, slug: str, req: ParticipantRegister) -> Pa
     return participant
 
 
-def list_participants(db: Session, event_id: UUID, user_id: UUID, role: str = None, skill: str = None) -> list[Participant]:
+def list_participants(db: Session, event_id: UUID, user_id: UUID, strength: str = None, experience: str = None) -> list[Participant]:
     from app.services.event_service import _assert_organizer
     _assert_organizer(db, event_id, user_id)
     q = db.query(Participant).filter(Participant.event_id == event_id)
-    if role:
-        q = q.filter(Participant.role == role)
-    if skill:
-        q = q.filter(Participant.skill_level == skill)
+    if strength:
+        q = q.filter(Participant.normalized_strength == strength)
+    if experience:
+        q = q.filter(Participant.experience_level == experience)
     return q.all()
 
 
@@ -82,4 +76,19 @@ def delete_participant(db: Session, event_id: UUID, participant_id: UUID, user_i
         raise HTTPException(status_code=404, detail="Participant not found")
     db.delete(p)
     db.commit()
+    return p
+
+
+def override_category(db: Session, event_id: UUID, participant_id: UUID, user_id: UUID, normalized_strength: str) -> Participant:
+    from app.services.event_service import _assert_organizer
+    _assert_organizer(db, event_id, user_id)
+    p = db.query(Participant).filter(
+        Participant.id == participant_id, Participant.event_id == event_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    p.normalized_strength = normalized_strength
+    p.strength_source = "manual"
+    db.commit()
+    db.refresh(p)
     return p

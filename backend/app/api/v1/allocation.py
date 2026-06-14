@@ -9,6 +9,7 @@ from app.models.event import Event
 from app.models.allocation import AllocationConfig, Allocation
 from app.schemas.allocation import AllocationConfigIn, AllocationConfigOut, AllocationOut, TeamOut, TeamMemberOut
 from app.services.allocation_engine import run_allocation
+from app.services.categorization_service import normalize_pending
 from app.services.event_service import _assert_organizer
 from app.models.team import Team, TeamMember
 from app.models.participant import Participant
@@ -88,6 +89,7 @@ def allocate(event_id: UUID, db: Session = Depends(get_db), current_user: User =
         config = AllocationConfig(event_id=event_id)
         db.add(config)
         db.commit()
+    normalize_pending(db, event_id)
     allocation = run_allocation(db, event_id, config)
     return _build_allocation_out(db, allocation)
 

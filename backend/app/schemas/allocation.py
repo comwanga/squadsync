@@ -23,8 +23,8 @@ class TeamMemberOut(BaseModel):
     id: UUID
     name: str
     email: str
-    role: str
-    skill_level: str
+    normalized_strength: Optional[str]
+    experience_level: str
     composite_score: Optional[float]
 
     model_config = {"from_attributes": True}
@@ -58,8 +58,8 @@ class AllocationOut(BaseModel):
 class PublicTeamMember(BaseModel):
     id: UUID
     name: str
-    role: str
-    skill_level: str
+    normalized_strength: Optional[str]
+    experience_level: str
 
     model_config = {"from_attributes": True}
 

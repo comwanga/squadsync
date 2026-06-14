@@ -9,15 +9,15 @@ def published_allocation(client, auth_headers):
     slug = event["registration_slug"]
 
     # Register 4 participants
-    for i, (skill, role, years) in enumerate([
-        ("advanced", "frontend", 4),
-        ("intermediate", "backend", 2),
-        ("beginner", "ux", 0),
-        ("professional", "fullstack", 8),
+    for i, (experience, strength) in enumerate([
+        ("advanced", "technical"),
+        ("intermediate", "technical"),
+        ("beginner", "design"),
+        ("advanced", "coordination"),
     ]):
         client.post(f"/api/v1/events/{slug}/register", json={
             "name": f"Person{i}", "email": f"p{i}@test.com",
-            "skill_level": skill, "role": role, "years_experience": years
+            "primary_strength": strength, "experience_level": experience,
         })
 
     # Run and publish allocation

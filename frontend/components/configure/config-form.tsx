@@ -13,8 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-
-const ROLES = ["frontend","backend","fullstack","ai_ml","ux","devops","blockchain","mobile","product","marketing"];
+import { CONCRETE_STRENGTHS } from "@/lib/taxonomy";
 
 interface Constraint { role: string; min: number; }
 
@@ -40,7 +39,7 @@ function ConfigFormFields({ eventId, initial }: { eventId: string; initial?: All
 
   const wSkill = Math.round((1 - wExp) * 100) / 100;
 
-  const addConstraint = () => setConstraints(c => [...c, { role: "frontend", min: 1 }]);
+  const addConstraint = () => setConstraints(c => [...c, { role: "technical", min: 1 }]);
   const removeConstraint = (i: number) => setConstraints(c => c.filter((_, idx) => idx !== i));
   const updateConstraint = (i: number, field: keyof Constraint, value: string | number) =>
     setConstraints(c => c.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
@@ -109,7 +108,7 @@ function ConfigFormFields({ eventId, initial }: { eventId: string; initial?: All
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  {CONCRETE_STRENGTHS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <span className="text-sm text-muted-foreground whitespace-nowrap">min</span>

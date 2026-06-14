@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # request URL FastAPI sees (http, internal host) differs from the signed URL.
     # When unset, the live request URL is used (correct for local/dev).
     PUBLIC_API_URL: str | None = None
+    # Optional: enables AI normalization of free-text "Other" strengths.
+    # When unset, allocation falls back to a deterministic slug per Other entry.
+    ANTHROPIC_API_KEY: str | None = None
+    CATEGORIZATION_MODEL: str = "claude-haiku-4-5-20251001"
 
     class Config:
         env_file = ".env"

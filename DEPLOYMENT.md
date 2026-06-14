@@ -54,6 +54,7 @@ There's a deliberate ordering because the two services reference each other's UR
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | 24h |
 | `FRONTEND_URL` | **you set** | Vercel origin, for CORS. No trailing slash. |
 | `PUBLIC_API_URL` | **you set** | this API's own https URL. Must equal `NEXT_PUBLIC_API_URL`. |
+| `ANTHROPIC_API_KEY` | *optional* | enables AI normalization of free-text "Other" strengths. Unset = deterministic slug fallback. |
 
 **Vercel — frontend** (Root Directory `frontend`)
 

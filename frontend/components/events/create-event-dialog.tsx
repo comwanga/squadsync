@@ -80,8 +80,17 @@ export function CreateEventDialog() {
             {errors.title && <p className="text-sm text-red-500">{errors.title.message}</p>}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="description">Description (optional)</Label>
-            <Input id="description" placeholder="Brief description" {...register("description")} />
+            <Label htmlFor="description">Description</Label>
+            <textarea
+              id="description"
+              rows={3}
+              placeholder="What is this event about? e.g. Build AI + satellite tools to improve crop yields."
+              className="flex min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              {...register("description")}
+            />
+            <p className="text-xs text-muted-foreground">
+              Describe the event — this helps SquadSync group attendees more accurately.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">

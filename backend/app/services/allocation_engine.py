@@ -5,13 +5,11 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.taxonomy import EXPERIENCE_SCORE
 from app.models.allocation import AllocationConfig, Allocation
 from app.models.event import Event
 from app.models.participant import Participant
 from app.models.team import Team, TeamMember
-
-_EXP_MAP = {0: 1, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 3}
-_SKILL_MAP = {"beginner": 1, "intermediate": 2, "advanced": 3, "professional": 4}
 
 
 class AllocationError(HTTPException):
@@ -21,10 +19,13 @@ class AllocationError(HTTPException):
         return str(self.detail)
 
 
-def compute_composite_score(years_exp: int, skill_level: str, w_exp: float = 0.5, w_skill: float = 0.5) -> float:
-    e = 4 if years_exp >= 7 else _EXP_MAP.get(years_exp, 1)
-    k = _SKILL_MAP[skill_level]
-    return round((w_exp * e) + (w_skill * k), 4)
+def compute_composite_score(experience_level: str) -> float:
+    """Single-dimension experience score (1.0-3.0).
+
+    Maps cleanly onto the engine's passes: advanced (3.0) = anchor,
+    intermediate (2.0), beginner (1.0) = fill.
+    """
+    return EXPERIENCE_SCORE[experience_level]
 
 
 def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> Allocation:
@@ -43,12 +44,9 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
     if n_teams > len(participants):
         raise AllocationError(status_code=400, detail="Fewer participants than teams")
 
-    # Recompute composite scores with current weights
+    # Recompute composite scores
     for p in participants:
-        p.composite_score = compute_composite_score(
-            p.years_experience, p.skill_level,
-            config.weight_experience, config.weight_skill,
-        )
+        p.composite_score = compute_composite_score(p.experience_level)
     db.flush()
 
     # Snapshot hash
@@ -71,7 +69,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
         idx = i % n_teams
         buckets[idx]["members"].append(anchor)
         buckets[idx]["score_sum"] += anchor.composite_score
-        buckets[idx]["roles"].append(anchor.role)
+        buckets[idx]["roles"].append(anchor.normalized_strength or anchor.primary_strength)
         unassigned.discard(anchor.id)
 
     # Pass 2: Intermediates (1.5 <= Sc < 3.0)
@@ -83,7 +81,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
         idx = min(range(n_teams), key=lambda i: buckets[i]["score_sum"])
         buckets[idx]["members"].append(p)
         buckets[idx]["score_sum"] += p.composite_score
-        buckets[idx]["roles"].append(p.role)
+        buckets[idx]["roles"].append(p.normalized_strength or p.primary_strength)
         unassigned.discard(p.id)
 
     # Pass 3: Role constraint enforcement
@@ -94,7 +92,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
     def _take_from_pool(role: str):
         """Pull an as-yet-unassigned participant with the given role, if any."""
         for idx, p in enumerate(remaining_pool):
-            if p.role == role:
+            if (p.normalized_strength or p.primary_strength) == role:
                 return remaining_pool.pop(idx)
         return None
 
@@ -110,12 +108,12 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
                 continue
             if donor["roles"].count(role) > min_count and len(donor["members"]) > 1:
                 for k, member in enumerate(donor["members"]):
-                    if member.role == role:
+                    if (member.normalized_strength or member.primary_strength) == role:
                         donor["members"].pop(k)
                         donor["roles"].remove(role)
                         donor["score_sum"] -= member.composite_score
                         buckets[needy_idx]["members"].append(member)
-                        buckets[needy_idx]["roles"].append(member.role)
+                        buckets[needy_idx]["roles"].append(member.normalized_strength or member.primary_strength)
                         buckets[needy_idx]["score_sum"] += member.composite_score
                         return True
         return False
@@ -130,7 +128,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
                     if c is not None:
                         bucket["members"].append(c)
                         bucket["score_sum"] += c.composite_score
-                        bucket["roles"].append(c.role)
+                        bucket["roles"].append(c.normalized_strength or c.primary_strength)
                         unassigned.discard(c.id)
                         continue
                     # 2) Otherwise rebalance the role from a team that has a surplus.
@@ -149,7 +147,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
         idx = min(range(n_teams), key=lambda i: len(buckets[i]["members"]))
         buckets[idx]["members"].append(p)
         buckets[idx]["score_sum"] += p.composite_score
-        buckets[idx]["roles"].append(p.role)
+        buckets[idx]["roles"].append(p.normalized_strength or p.primary_strength)
 
     # Compute global skill scores
     score_sums = [b["score_sum"] for b in buckets]

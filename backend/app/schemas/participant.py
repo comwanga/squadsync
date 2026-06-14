@@ -1,11 +1,11 @@
 from typing import Literal, Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
-SkillLevel = Literal["beginner", "intermediate", "advanced", "professional"]
-ParticipantRole = Literal[
-    "frontend", "backend", "fullstack", "ai_ml", "ux", "devops",
-    "blockchain", "mobile", "product", "marketing",
+ExperienceLevel = Literal["beginner", "intermediate", "advanced"]
+PrimaryStrength = Literal[
+    "technical", "design", "planning", "coordination",
+    "communication", "research", "domain_expert", "other",
 ]
 
 
@@ -13,11 +13,17 @@ class ParticipantRegister(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     phone: Optional[str] = Field(default=None, max_length=40)
-    skill_level: SkillLevel
-    role: ParticipantRole
-    years_experience: int = Field(default=0, ge=0, le=60)
+    primary_strength: PrimaryStrength
+    strength_other: Optional[str] = Field(default=None, max_length=120)
+    experience_level: ExperienceLevel
     tech_stack: list[str] = []
     interests: list[str] = []
+
+    @model_validator(mode="after")
+    def _require_other_text(self):
+        if self.primary_strength == "other" and not (self.strength_other and self.strength_other.strip()):
+            raise ValueError("Please describe your strength when choosing 'Other'.")
+        return self
 
 
 class ParticipantOut(BaseModel):
@@ -26,14 +32,18 @@ class ParticipantOut(BaseModel):
     name: str
     email: str
     phone: Optional[str]
-    skill_level: str
-    role: str
-    years_experience: int
-    tech_stack: list[str]
-    interests: list[str]
+    primary_strength: str
+    strength_other: Optional[str]
+    normalized_strength: Optional[str]
+    strength_source: str
+    experience_level: str
     composite_score: Optional[float]
 
     model_config = {"from_attributes": True}
+
+
+class ParticipantCategoryUpdate(BaseModel):
+    normalized_strength: str = Field(min_length=1, max_length=120)
 
 
 class EventPublicInfo(BaseModel):
