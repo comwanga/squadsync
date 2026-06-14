@@ -24,32 +24,32 @@ def test_update_event_rejects_unknown_status(client, auth_headers):
 
 # --- H3: registration validation (no more 500s on bad enum values) ---
 
-def test_register_rejects_invalid_skill_level(client, auth_headers):
+def test_register_rejects_invalid_experience_level(client, auth_headers):
     event = _active_event(client, auth_headers)
     slug = event["registration_slug"]
     res = client.post(f"/api/v1/events/{slug}/register", json={
         "name": "A", "email": "a@test.com",
-        "skill_level": "wizard", "role": "frontend", "years_experience": 1,
+        "primary_strength": "technical", "experience_level": "wizard",
     })
     assert res.status_code == 422
 
 
-def test_register_rejects_invalid_role(client, auth_headers):
+def test_register_rejects_invalid_primary_strength(client, auth_headers):
     event = _active_event(client, auth_headers)
     slug = event["registration_slug"]
     res = client.post(f"/api/v1/events/{slug}/register", json={
         "name": "A", "email": "a@test.com",
-        "skill_level": "beginner", "role": "astronaut", "years_experience": 1,
+        "primary_strength": "astronaut", "experience_level": "beginner",
     })
     assert res.status_code == 422
 
 
-def test_register_rejects_negative_experience(client, auth_headers):
+def test_register_rejects_other_without_text(client, auth_headers):
     event = _active_event(client, auth_headers)
     slug = event["registration_slug"]
     res = client.post(f"/api/v1/events/{slug}/register", json={
         "name": "A", "email": "a@test.com",
-        "skill_level": "beginner", "role": "frontend", "years_experience": -5,
+        "primary_strength": "other", "experience_level": "beginner",
     })
     assert res.status_code == 422
 
@@ -61,7 +61,7 @@ def test_duplicate_email_rejected(client, auth_headers):
     slug = event["registration_slug"]
     body = {
         "name": "A", "email": "dup@test.com",
-        "skill_level": "beginner", "role": "frontend", "years_experience": 1,
+        "primary_strength": "technical", "experience_level": "beginner",
     }
     first = client.post(f"/api/v1/events/{slug}/register", json=body)
     assert first.status_code == 201

@@ -20,14 +20,16 @@ def test_register_participant(client, active_event):
     res = client.post(f"/api/v1/events/{slug}/register", json={
         "name": "Alice",
         "email": "alice@example.com",
-        "skill_level": "intermediate",
-        "role": "frontend",
-        "years_experience": 3
+        "primary_strength": "technical",
+        "experience_level": "intermediate",
     })
     assert res.status_code == 201
     data = res.json()
     assert data["name"] == "Alice"
     assert data["composite_score"] is not None
+    # Preset strength is normalized immediately, with source "preset".
+    assert data["normalized_strength"] == "technical"
+    assert data["strength_source"] == "preset"
 
 
 def test_composite_score_computed_correctly(client, active_event):
@@ -35,17 +37,37 @@ def test_composite_score_computed_correctly(client, active_event):
     res = client.post(f"/api/v1/events/{slug}/register", json={
         "name": "Bob",
         "email": "bob@example.com",
-        "skill_level": "advanced",   # K=3
-        "role": "backend",
-        "years_experience": 5        # E=3
+        "primary_strength": "technical",
+        "experience_level": "advanced",   # advanced -> 3.0
     })
-    # Default weights 0.5 each: Sc = (0.5*3) + (0.5*3) = 3.0
     assert res.json()["composite_score"] == pytest.approx(3.0)
+
+
+def test_register_other_requires_text(client, active_event):
+    slug = active_event["registration_slug"]
+    res = client.post(f"/api/v1/events/{slug}/register", json={
+        "name": "Carol", "email": "carol@example.com",
+        "primary_strength": "other", "experience_level": "beginner",
+    })
+    assert res.status_code == 422  # strength_other missing
+
+
+def test_register_other_with_text_is_pending(client, active_event):
+    slug = active_event["registration_slug"]
+    res = client.post(f"/api/v1/events/{slug}/register", json={
+        "name": "Dan", "email": "dan@example.com",
+        "primary_strength": "other", "strength_other": "Agronomist",
+        "experience_level": "advanced",
+    })
+    assert res.status_code == 201
+    data = res.json()
+    # Other entries are not normalized until allocation runs.
+    assert data["normalized_strength"] is None
 
 
 def test_duplicate_registration_rejected(client, active_event):
     slug = active_event["registration_slug"]
-    payload = {"name": "Alice", "email": "alice@example.com", "skill_level": "beginner", "role": "ux", "years_experience": 0}
+    payload = {"name": "Alice", "email": "alice@example.com", "primary_strength": "design", "experience_level": "beginner"}
     client.post(f"/api/v1/events/{slug}/register", json=payload)
     res = client.post(f"/api/v1/events/{slug}/register", json=payload)
     assert res.status_code == 400
@@ -54,7 +76,7 @@ def test_duplicate_registration_rejected(client, active_event):
 def test_list_participants(client, auth_headers, active_event):
     slug = active_event["registration_slug"]
     client.post(f"/api/v1/events/{slug}/register", json={
-        "name": "Alice", "email": "alice@example.com", "skill_level": "beginner", "role": "ux", "years_experience": 0
+        "name": "Alice", "email": "alice@example.com", "primary_strength": "design", "experience_level": "beginner"
     })
     res = client.get(f"/api/v1/events/{active_event['id']}/participants", headers=auth_headers)
     assert res.status_code == 200
@@ -64,7 +86,7 @@ def test_list_participants(client, auth_headers, active_event):
 def test_delete_participant(client, auth_headers, active_event):
     slug = active_event["registration_slug"]
     p = client.post(f"/api/v1/events/{slug}/register", json={
-        "name": "Alice", "email": "alice@example.com", "skill_level": "beginner", "role": "ux", "years_experience": 0
+        "name": "Alice", "email": "alice@example.com", "primary_strength": "design", "experience_level": "beginner"
     }).json()
     res = client.delete(f"/api/v1/events/{active_event['id']}/participants/{p['id']}", headers=auth_headers)
     assert res.status_code == 200

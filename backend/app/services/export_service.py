@@ -44,12 +44,13 @@ def generate_csv(db: Session, allocation_id: UUID) -> bytes:
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Team", "Name", "Email", "Role", "Skill Level", "Years Experience", "Fairness Score"])
+    writer.writerow(["Team", "Name", "Email", "Category", "Experience", "Fairness Score"])
     for team, members in teams_data:
         for m in members:
             writer.writerow([
-                team.name, m.name, m.email, m.role,
-                m.skill_level, m.years_experience, team.fairness_score,
+                team.name, m.name, m.email,
+                m.normalized_strength or m.primary_strength,
+                m.experience_level, team.fairness_score,
             ])
     return buf.getvalue().encode("utf-8")
 
@@ -68,9 +69,9 @@ def generate_pdf(db: Session, allocation_id: UUID) -> bytes:
 
     for team, members in teams_data:
         elements.append(Paragraph(f"{team.name} (Fairness: {team.fairness_score}%)", styles["Heading2"]))
-        table_data = [["Name", "Email", "Role", "Skill", "Experience"]]
+        table_data = [["Name", "Email", "Category", "Experience"]]
         for m in members:
-            table_data.append([m.name, m.email, m.role, m.skill_level, f"{m.years_experience}y"])
+            table_data.append([m.name, m.email, m.normalized_strength or m.primary_strength, m.experience_level])
         t = Table(table_data, repeatRows=1)
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
