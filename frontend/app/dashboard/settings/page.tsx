@@ -2,7 +2,8 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import Link from "next/link";
+import { Moon, Sun, BookOpen, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsPage() {
@@ -54,6 +55,23 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Link href="/dashboard/settings/guide" className="block">
+        <Card className="transition-colors hover:border-primary/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <BookOpen className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle className="text-base">Guide</CardTitle>
+                  <CardDescription>Learn how SquadSync works — step by step</CardDescription>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+        </Card>
+      </Link>
     </div>
   );
 }
