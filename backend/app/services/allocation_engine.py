@@ -28,7 +28,13 @@ def compute_composite_score(years_exp: int, skill_level: str, w_exp: float = 0.5
 
 
 def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> Allocation:
-    participants = db.query(Participant).filter(Participant.event_id == event_id).all()
+    # Deterministic base ordering so ties break the same way on every run / DB engine.
+    participants = (
+        db.query(Participant)
+        .filter(Participant.event_id == event_id)
+        .order_by(Participant.id)
+        .all()
+    )
     if not participants:
         raise AllocationError(status_code=400, detail="No participants to allocate")
 
@@ -59,7 +65,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
     # Pass 1: Anchors (Sc >= 3.0)
     anchors = sorted(
         [p for p in participants if p.composite_score >= 3.0],
-        key=lambda x: -x.composite_score,
+        key=lambda x: (-x.composite_score, str(x.id)),
     )
     for i, anchor in enumerate(anchors):
         idx = i % n_teams
@@ -71,7 +77,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
     # Pass 2: Intermediates (1.5 <= Sc < 3.0)
     intermediates = sorted(
         [p for p in participants if p.id in unassigned and 1.5 <= p.composite_score < 3.0],
-        key=lambda x: -x.composite_score,
+        key=lambda x: (-x.composite_score, str(x.id)),
     )
     for p in intermediates:
         idx = min(range(n_teams), key=lambda i: buckets[i]["score_sum"])
@@ -85,23 +91,57 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
     constraint_warnings: dict = {}
     remaining_pool = [p for p in participants if p.id in unassigned]
 
+    def _take_from_pool(role: str):
+        """Pull an as-yet-unassigned participant with the given role, if any."""
+        for idx, p in enumerate(remaining_pool):
+            if p.role == role:
+                return remaining_pool.pop(idx)
+        return None
+
+    def _relocate_from_surplus(role: str, min_count: int, needy_idx: int) -> bool:
+        """Move a participant with `role` from a team that has it to spare.
+
+        A donor can spare one only if doing so keeps the donor at/above its own
+        requirement for that role (constraints are global, so the donor's
+        requirement is the same min_count) and leaves the donor non-empty.
+        """
+        for j, donor in enumerate(buckets):
+            if j == needy_idx:
+                continue
+            if donor["roles"].count(role) > min_count and len(donor["members"]) > 1:
+                for k, member in enumerate(donor["members"]):
+                    if member.role == role:
+                        donor["members"].pop(k)
+                        donor["roles"].remove(role)
+                        donor["score_sum"] -= member.composite_score
+                        buckets[needy_idx]["members"].append(member)
+                        buckets[needy_idx]["roles"].append(member.role)
+                        buckets[needy_idx]["score_sum"] += member.composite_score
+                        return True
+        return False
+
     if role_constraints:
         for i, bucket in enumerate(buckets):
             team_key = f"team_{i + 1:02d}"
             for role, min_count in role_constraints.items():
-                current = bucket["roles"].count(role)
-                needed = min_count - current
-                for _ in range(needed):
-                    candidates = [p for p in remaining_pool if p.role == role]
-                    if candidates:
-                        c = candidates[0]
-                        remaining_pool.remove(c)
+                while bucket["roles"].count(role) < min_count:
+                    # 1) Prefer an unassigned participant with this role.
+                    c = _take_from_pool(role)
+                    if c is not None:
                         bucket["members"].append(c)
                         bucket["score_sum"] += c.composite_score
                         bucket["roles"].append(c.role)
                         unassigned.discard(c.id)
-                    else:
-                        constraint_warnings.setdefault(team_key, []).append(f"missing: {role}")
+                        continue
+                    # 2) Otherwise rebalance the role from a team that has a surplus.
+                    if _relocate_from_surplus(role, min_count, i):
+                        continue
+                    # 3) Genuinely unsatisfiable — one warning per still-missing slot.
+                    shortage = min_count - bucket["roles"].count(role)
+                    constraint_warnings.setdefault(team_key, []).extend(
+                        [f"missing: {role}"] * shortage
+                    )
+                    break
 
     # Pass 4: Beginner fill
     remaining = [p for p in participants if p.id in unassigned]
