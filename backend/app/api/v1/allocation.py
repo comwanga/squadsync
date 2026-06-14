@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
+from app.models.event import Event
 from app.models.allocation import AllocationConfig, Allocation
 from app.schemas.allocation import AllocationConfigIn, AllocationConfigOut, AllocationOut, TeamOut, TeamMemberOut
 from app.services.allocation_engine import run_allocation
@@ -91,6 +92,18 @@ def allocate(event_id: UUID, db: Session = Depends(get_db), current_user: User =
     return _build_allocation_out(db, allocation)
 
 
+@router.get("/{event_id}/allocations", response_model=list[AllocationOut])
+def list_allocations(event_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _assert_organizer(db, event_id, current_user.id)
+    allocations = (
+        db.query(Allocation)
+        .filter(Allocation.event_id == event_id)
+        .order_by(Allocation.created_at.desc())
+        .all()
+    )
+    return [_build_allocation_out(db, a) for a in allocations]
+
+
 @router.get("/{event_id}/allocations/{allocation_id}", response_model=AllocationOut)
 def get_allocation(
     event_id: UUID,
@@ -121,5 +134,9 @@ def publish_allocation(
     if not allocation:
         raise HTTPException(status_code=404, detail="Allocation not found")
     allocation.status = "published"
+    # Publishing announces teams, so close registration for the event.
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if event and event.status != "archived":
+        event.status = "allocated"
     db.commit()
     return {"detail": "published"}

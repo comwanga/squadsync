@@ -3,6 +3,9 @@ import Credentials from "next-auth/providers/credentials";
 import { fetchAPI } from "@/lib/api";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Keep the NextAuth session lifetime in step with the backend JWT
+  // (ACCESS_TOKEN_EXPIRE_MINUTES = 1440) so they expire together.
+  session: { maxAge: 60 * 60 * 24 },
   providers: [
     Credentials({
       credentials: {

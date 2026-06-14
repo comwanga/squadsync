@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
-import { useAllocationConfig, saveAllocationConfig } from "@/hooks/use-allocation";
+import { useAllocationConfig, saveAllocationConfig, type AllocationConfig } from "@/hooks/use-allocation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -19,21 +19,24 @@ const ROLES = ["frontend","backend","fullstack","ai_ml","ux","devops","blockchai
 interface Constraint { role: string; min: number; }
 
 export function ConfigForm({ eventId }: { eventId: string }) {
-  const { data: session, status } = useSession();
   const { config, isLoading } = useAllocationConfig(eventId);
-  const [wExp, setWExp] = useState(0.5);
-  const [constraints, setConstraints] = useState<Constraint[]>([]);
-  const [saving, setSaving] = useState(false);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (config) {
-      setWExp(config.weight_experience);
-      setConstraints(
-        Object.entries(config.role_constraints).map(([role, min]) => ({ role, min: min as number }))
-      );
-    }
-  }, [config?.weight_experience, config?.weight_skill, JSON.stringify(config?.role_constraints)]);
+  if (isLoading) return <div className="animate-pulse h-64 bg-slate-100 rounded-lg" />;
+
+  // Remount (and re-seed local state) whenever the loaded config identity changes,
+  // instead of syncing fetched data into state via an effect.
+  return <ConfigFormFields key={config?.id ?? eventId} eventId={eventId} initial={config} />;
+}
+
+function ConfigFormFields({ eventId, initial }: { eventId: string; initial?: AllocationConfig }) {
+  const { data: session } = useSession();
+  const [wExp, setWExp] = useState(initial?.weight_experience ?? 0.5);
+  const [constraints, setConstraints] = useState<Constraint[]>(
+    initial
+      ? Object.entries(initial.role_constraints).map(([role, min]) => ({ role, min: min as number }))
+      : []
+  );
+  const [saving, setSaving] = useState(false);
 
   const wSkill = Math.round((1 - wExp) * 100) / 100;
 
@@ -59,8 +62,6 @@ export function ConfigForm({ eventId }: { eventId: string }) {
       setSaving(false);
     }
   };
-
-  if (status === "loading" || isLoading) return <div className="animate-pulse h-64 bg-slate-100 rounded-lg" />;
 
   return (
     <div className="space-y-6 max-w-xl">

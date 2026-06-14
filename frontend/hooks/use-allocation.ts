@@ -38,17 +38,17 @@ export interface Allocation {
 }
 
 function useToken() {
-  const { data: session } = useSession();
-  return session?.accessToken;
+  const { data: session, status } = useSession();
+  return { token: session?.accessToken, isSessionLoading: status === "loading" };
 }
 
 export function useAllocationConfig(eventId: string) {
-  const token = useToken();
+  const { token, isSessionLoading } = useToken();
   const { data, isLoading } = useSWR(
     token ? [`/api/v1/events/${eventId}/config`, token] : null,
     ([path, t]) => fetchAPI<AllocationConfig>(path, { token: t })
   );
-  return { config: data, isLoading };
+  return { config: data, isLoading: isLoading || isSessionLoading };
 }
 
 export async function saveAllocationConfig(token: string, eventId: string, payload: Partial<AllocationConfig>) {

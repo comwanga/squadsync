@@ -7,6 +7,15 @@ interface FetchOptions {
   headers?: Record<string, string>;
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function fetchAPI<T = unknown>(
   path: string,
   options: FetchOptions = {}
@@ -33,7 +42,7 @@ export async function fetchAPI<T = unknown>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-    throw new Error(error.detail ?? `HTTP ${response.status}`);
+    throw new ApiError(error.detail ?? `HTTP ${response.status}`, response.status);
   }
 
   return response.json() as Promise<T>;

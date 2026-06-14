@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SAEnum, DateTime, JSON, Uuid
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, Enum as SAEnum, DateTime, JSON, Uuid, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -7,6 +7,9 @@ from app.core.database import Base
 
 class Participant(Base):
     __tablename__ = "participants"
+    __table_args__ = (
+        UniqueConstraint("event_id", "email", name="uq_participant_event_email"),
+    )
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(Uuid(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True)

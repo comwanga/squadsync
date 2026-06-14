@@ -12,15 +12,31 @@ import type { Allocation } from "@/hooks/use-allocation";
 export default function EnginePage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
   const { data: session } = useSession();
-  const [allocation, setAllocation] = useState<Allocation | null>(null);
+  // Locally-created/updated allocation takes precedence over the server copy so
+  // the just-run or just-published result shows immediately.
+  const [fresh, setFresh] = useState<Allocation | null>(null);
 
   const { data: participants = [] } = useSWR(
     session?.accessToken ? [`/api/v1/events/${eventId}/participants`, session.accessToken] : null,
     ([path, token]) => fetchAPI<{ id: string }[]>(path, { token })
   );
 
+  // Restore the most recent allocation so results survive a page refresh (latest first).
+  const { data: allocations = [], mutate: mutateAllocations } = useSWR(
+    session?.accessToken ? [`/api/v1/events/${eventId}/allocations`, session.accessToken] : null,
+    ([path, token]) => fetchAPI<Allocation[]>(path, { token })
+  );
+
+  const allocation = fresh ?? allocations[0] ?? null;
+
   const handlePublished = () => {
-    if (allocation) setAllocation({ ...allocation, status: "published" });
+    if (allocation) setFresh({ ...allocation, status: "published" });
+    mutateAllocations();
+  };
+
+  const handleComplete = (a: Allocation) => {
+    setFresh(a);
+    mutateAllocations();
   };
 
   return (
@@ -34,7 +50,7 @@ export default function EnginePage({ params }: { params: Promise<{ eventId: stri
         <RunPanel
           eventId={eventId}
           participantCount={participants.length}
-          onComplete={setAllocation}
+          onComplete={handleComplete}
         />
       ) : (
         <ResultsGrid

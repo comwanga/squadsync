@@ -13,26 +13,26 @@ export interface Event {
 }
 
 function useToken() {
-  const { data: session } = useSession();
-  return session?.accessToken;
+  const { data: session, status } = useSession();
+  return { token: session?.accessToken, isSessionLoading: status === "loading" };
 }
 
 export function useEvents() {
-  const token = useToken();
+  const { token, isSessionLoading } = useToken();
   const { data, error, isLoading } = useSWR(
     token ? ["/api/v1/events", token] : null,
     ([path, t]) => fetchAPI<Event[]>(path, { token: t })
   );
-  return { events: data ?? [], error, isLoading };
+  return { events: data ?? [], error, isLoading: isLoading || isSessionLoading };
 }
 
 export function useEvent(eventId: string | null) {
-  const token = useToken();
+  const { token, isSessionLoading } = useToken();
   const { data, error, isLoading } = useSWR(
     token && eventId ? [`/api/v1/events/${eventId}`, token] : null,
     ([path, t]) => fetchAPI<Event>(path, { token: t })
   );
-  return { event: data, error, isLoading };
+  return { event: data, error, isLoading: isLoading || isSessionLoading };
 }
 
 export interface CreateEventPayload {

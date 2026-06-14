@@ -27,6 +27,21 @@ def _assert_organizer(db: Session, event_id: UUID, user_id: UUID) -> Event:
     return event
 
 
+def assert_allocation_organizer(db: Session, allocation_id: UUID, user_id: UUID):
+    """Resolve an allocation to its event and assert the user organizes that event.
+
+    Returns the Allocation. Raises 404 if the allocation does not exist and 403
+    if the caller is not an organizer of the owning event.
+    """
+    from app.models.allocation import Allocation
+
+    allocation = db.query(Allocation).filter(Allocation.id == allocation_id).first()
+    if not allocation:
+        raise HTTPException(status_code=404, detail="Allocation not found")
+    _assert_organizer(db, allocation.event_id, user_id)
+    return allocation
+
+
 def create_event(db: Session, req: EventCreate, owner_id: UUID) -> Event:
     slug = _generate_slug()
     while db.query(Event).filter(Event.registration_slug == slug).first():
