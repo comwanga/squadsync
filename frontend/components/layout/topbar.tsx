@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { LogoMark } from "@/components/brand/logo";
 
 function truncateNpub(npub: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
@@ -31,7 +32,7 @@ export function Topbar() {
 
   return (
     <header className="h-16 border-b bg-white dark:bg-slate-900 dark:border-slate-700 flex items-center justify-between px-6">
-      <div className="md:hidden font-bold text-primary text-lg">SquadSync</div>
+      <LogoMark className="md:hidden h-8 w-8" />
       <div className="flex-1" />
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon">

@@ -8,6 +8,7 @@ import {
   LayoutDashboard, Calendar, Settings, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/brand/logo";
 
 const navItems = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
@@ -27,9 +28,7 @@ export function Sidebar() {
       )}
     >
       <div className={cn("flex items-center h-16 border-b dark:border-slate-700 px-4", collapsed ? "justify-center" : "justify-between")}>
-        {!collapsed && (
-          <span className="font-bold text-lg tracking-tight text-primary">SquadSync</span>
-        )}
+        {!collapsed && <Logo className="h-7 w-auto" />}
         <Button variant="ghost" size="icon" onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>

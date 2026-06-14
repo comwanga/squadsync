@@ -1,6 +1,7 @@
 import { fetchAPI } from "@/lib/api";
 import { RegistrationForm } from "@/components/registration/registration-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Logo } from "@/components/brand/logo";
 
 interface EventInfo {
   id: string;
@@ -53,7 +54,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
     <div className="min-h-screen bg-slate-50 flex items-start justify-center p-4 pt-8">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="text-2xl font-bold text-primary mb-1">SquadSync</div>
+          <Logo priority className="h-9 w-auto mx-auto mb-2" />
           <CardTitle>{event.title}</CardTitle>
           {event.description && <CardDescription>{event.description}</CardDescription>}
         </CardHeader>
