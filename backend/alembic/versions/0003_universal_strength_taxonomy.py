@@ -1,15 +1,22 @@
 """universal strength taxonomy
 
-Revision ID: 0003
+Revision ID: 0003_universal_strength_taxonomy
 Revises: 0002_replay_and_unique_email
+Create Date: 2026-06-14
+
+Replaces developer-only participant roles with the universal strength taxonomy
+and collapses skill levels from 4 to 3. Pre-launch: participant/allocation rows
+are cleared rather than back-filled.
 """
+from typing import Sequence, Union
+
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0003"
-down_revision = "0002_replay_and_unique_email"
-branch_labels = None
-depends_on = None
+revision: str = "0003_universal_strength_taxonomy"
+down_revision: Union[str, None] = "0002_replay_and_unique_email"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
