@@ -177,3 +177,61 @@ def test_snapshot_hash_deterministic(db, event, config):
     # Run again (same participants)
     a2 = run_allocation(db, event.id, config)
     assert a1.snapshot_hash == a2.snapshot_hash
+
+
+def _memberships(db, allocation_id):
+    """Return team membership as a set of frozensets of participant ids (order-free)."""
+    teams = db.query(Team).filter(Team.allocation_id == allocation_id).all()
+    result = []
+    for t in teams:
+        members = db.query(TeamMember).filter(TeamMember.team_id == t.id).all()
+        result.append(frozenset(str(m.participant_id) for m in members))
+    return set(result)
+
+
+def test_allocation_assignments_are_deterministic(db, event, config):
+    # Mixed skills/roles/experience to exercise every pass and tie-breaking.
+    add_participant(db, event.id, "professional", "backend", 10)
+    add_participant(db, event.id, "advanced", "frontend", 5)
+    add_participant(db, event.id, "intermediate", "ux", 2)
+    add_participant(db, event.id, "intermediate", "backend", 3)
+    add_participant(db, event.id, "beginner", "frontend", 0)
+    add_participant(db, event.id, "beginner", "devops", 1)
+    add_participant(db, event.id, "advanced", "fullstack", 6)
+    add_participant(db, event.id, "beginner", "mobile", 0)
+    add_participant(db, event.id, "intermediate", "product", 2)
+
+    a1 = run_allocation(db, event.id, config)
+    a2 = run_allocation(db, event.id, config)
+    assert _memberships(db, a1.id) == _memberships(db, a2.id)
+
+
+def test_role_constraint_relocates_from_surplus(db, owner):
+    # Two teams, one backend required per team. The two backends both get anchored
+    # onto team 0 by the round-robin, starving team 1 — which the engine must fix
+    # by relocating a surplus backend rather than emitting a false warning.
+    e = Event(owner_id=owner.id, title="Reloc", team_count=2, registration_slug="reloc", status="active")
+    db.add(e)
+    db.commit()
+    cfg = AllocationConfig(event_id=e.id, weight_experience=0.5, weight_skill=0.5,
+                           role_constraints={"backend": 1})
+    db.add(cfg)
+    db.commit()
+
+    add_participant(db, e.id, "professional", "backend", 10)  # Sc 4.0 (anchor)
+    add_participant(db, e.id, "professional", "frontend", 5)  # Sc 3.5 (anchor)
+    add_participant(db, e.id, "advanced", "backend", 5)       # Sc 3.0 (anchor)
+
+    allocation = run_allocation(db, e.id, cfg)
+
+    # No team should be reported as missing a backend.
+    assert allocation.constraint_warnings == {}
+    teams = db.query(Team).filter(Team.allocation_id == allocation.id).all()
+    assert len(teams) == 2
+    for t in teams:
+        roles = [
+            p.role for p in db.query(Participant)
+            .join(TeamMember, Participant.id == TeamMember.participant_id)
+            .filter(TeamMember.team_id == t.id).all()
+        ]
+        assert "backend" in roles

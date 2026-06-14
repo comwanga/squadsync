@@ -1,0 +1,37 @@
+# Render blueprint — backend API + managed Postgres.
+# Deploy: Render Dashboard → New → Blueprint → pick this repo.
+# Frontend is deployed separately on Vercel (see DEPLOYMENT.md).
+
+databases:
+  - name: squadsync-db
+    plan: free
+    databaseName: squadsync
+    user: squadsync
+
+services:
+  - type: web
+    name: squadsync-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: squadsync-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true        # strong random JWT signing key
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
+      # Set after the Vercel frontend exists (CORS origin). No trailing slash.
+      - key: FRONTEND_URL
+        sync: false
+      # This service's own public URL, e.g. https://squadsync-api.onrender.com.
+      # MUST match the frontend's NEXT_PUBLIC_API_URL exactly (NIP-98 binding).
+      - key: PUBLIC_API_URL
+        sync: false
