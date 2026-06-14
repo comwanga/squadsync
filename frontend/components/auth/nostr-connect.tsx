@@ -31,6 +31,7 @@ async function buildNip98Event(skHex: string) {
       tags: [
         ["u", `${API_URL}/auth/nostr`],
         ["method", "POST"],
+        ["nonce", crypto.randomUUID()],
       ],
       content: "",
     },
@@ -57,6 +58,9 @@ export function NostrConnect() {
   } | null>(null);
 
   useEffect(() => {
+    // Browser-only capability detection must run after mount to stay SSR-safe
+    // (window/localStorage are unavailable during server render).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasExtension(typeof window !== "undefined" && "nostr" in window);
     const skHex = localStorage.getItem(SK_KEY);
     if (skHex) {

@@ -1,21 +1,23 @@
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+EventStatus = Literal["draft", "active", "allocated", "archived"]
 
 
 class EventCreate(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=200)
     description: Optional[str] = None
-    participant_limit: Optional[int] = None
-    team_count: int
+    participant_limit: Optional[int] = Field(default=None, ge=1)
+    team_count: int = Field(ge=2)
 
 
 class EventUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = None
-    participant_limit: Optional[int] = None
-    team_count: Optional[int] = None
-    status: Optional[str] = None
+    participant_limit: Optional[int] = Field(default=None, ge=1)
+    team_count: Optional[int] = Field(default=None, ge=2)
+    status: Optional[EventStatus] = None
 
 
 class EventOut(BaseModel):

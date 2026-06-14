@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
@@ -26,7 +27,17 @@ def get_public_event(db: Session, slug: str) -> Event:
 
 
 def register_participant(db: Session, slug: str, req: ParticipantRegister) -> Participant:
-    event = get_public_event(db, slug)
+    # Lock the event row so concurrent registrations for the same event are
+    # serialized (no-op on SQLite, which already serializes writes). This makes
+    # the participant-limit check race-free on PostgreSQL.
+    event = (
+        db.query(Event)
+        .filter(Event.registration_slug == slug)
+        .with_for_update()
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
     if event.status not in ("active",):
         raise HTTPException(status_code=400, detail="Event is not accepting registrations")
 
@@ -35,13 +46,6 @@ def register_participant(db: Session, slug: str, req: ParticipantRegister) -> Pa
         if count >= event.participant_limit:
             raise HTTPException(status_code=400, detail="Event is full")
 
-    existing = db.query(Participant).filter(
-        Participant.event_id == event.id,
-        Participant.email == req.email,
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered for this event")
-
     score = compute_composite_score(req.years_experience, req.skill_level)
     participant = Participant(
         event_id=event.id,
@@ -49,7 +53,12 @@ def register_participant(db: Session, slug: str, req: ParticipantRegister) -> Pa
         **req.model_dump(),
     )
     db.add(participant)
-    db.commit()
+    # The unique (event_id, email) constraint is the authoritative dedup guard.
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Email already registered for this event")
     db.refresh(participant)
     return participant
 

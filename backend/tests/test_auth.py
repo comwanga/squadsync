@@ -89,6 +89,17 @@ def test_nostr_login_wrong_method_tag(client):
     assert res.status_code == 401
 
 
+def test_nostr_login_replay_rejected(client):
+    privkey = PrivateKey()
+    pubkey = privkey.public_key.format(compressed=True)[1:].hex()
+    event = make_nostr_event(privkey)
+    first = client.post("/auth/nostr", json={"pubkey": pubkey, "event": event})
+    assert first.status_code == 200
+    # Replaying the exact same signed event must be rejected.
+    replay = client.post("/auth/nostr", json={"pubkey": pubkey, "event": event})
+    assert replay.status_code == 401
+
+
 def test_protected_route_without_token(client):
     res = client.get("/api/v1/events")
     assert res.status_code == 401

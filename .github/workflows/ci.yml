@@ -59,9 +59,20 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
 
+      - name: Lint
+        run: npm run lint
+        working-directory: frontend
+
       - name: Run tests
         run: npm test
         working-directory: frontend
+
+      - name: Production build
+        run: npm run build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          AUTH_SECRET: ci-build-secret
 
   docker:
     name: Docker Build (Backend)

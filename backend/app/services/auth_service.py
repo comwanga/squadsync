@@ -3,9 +3,11 @@ import json
 import time
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token
+from app.models.used_event import UsedAuthEvent
 from app.models.user import User
 from app.schemas.auth import NostrAuthRequest
 
@@ -46,17 +48,33 @@ def nostr_login(db: Session, req: NostrAuthRequest, expected_url: str) -> str:
     if event.get("pubkey") != req.pubkey:
         raise HTTPException(status_code=400, detail="Pubkey mismatch")
 
-    if abs(time.time() - event.get("created_at", 0)) > 60:
+    now = time.time()
+    created_at = event.get("created_at", 0)
+    # Reject stale events and events dated meaningfully in the future (clock skew).
+    if created_at > now + 5 or now - created_at > 60:
         raise HTTPException(status_code=400, detail="Event expired")
 
     if not verify_nostr_event(event, expected_url):
         raise HTTPException(status_code=401, detail="Invalid Nostr signature")
 
+    # Replay protection: a verified event ID may only be redeemed once (NIP-98).
+    event_id = event.get("id")
+    if db.query(UsedAuthEvent).filter(UsedAuthEvent.event_id == event_id).first():
+        raise HTTPException(status_code=401, detail="Replay detected — event already used")
+    db.add(UsedAuthEvent(event_id=event_id))
+
     user = db.query(User).filter(User.pubkey == req.pubkey).first()
     if not user:
         user = User(pubkey=req.pubkey)
         db.add(user)
+
+    # Commit both the consumed event and any new user atomically. A concurrent
+    # replay of the same event hits the used_auth_events PK and is rejected.
+    try:
         db.commit()
-        db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=401, detail="Replay detected — event already used")
+    db.refresh(user)
 
     return create_access_token(str(user.id))

@@ -8,12 +8,14 @@ from app.models.allocation import Allocation
 from app.models.team import Team, TeamMember
 from app.models.participant import Participant
 from app.schemas.allocation import TeamOut, TeamMemberOut
+from app.services.event_service import assert_allocation_organizer
 
 router = APIRouter()
 
 
 @router.get("/{allocation_id}/teams", response_model=list[TeamOut])
 def list_teams(allocation_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    assert_allocation_organizer(db, allocation_id, current_user.id)
     teams = db.query(Team).filter(Team.allocation_id == allocation_id).all()
     result = []
     for team in teams:
@@ -37,6 +39,7 @@ def list_teams(allocation_id: UUID, db: Session = Depends(get_db), current_user=
 
 @router.get("/{allocation_id}/teams/{team_id}", response_model=TeamOut)
 def get_team(allocation_id: UUID, team_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    assert_allocation_organizer(db, allocation_id, current_user.id)
     team = db.query(Team).filter(Team.id == team_id, Team.allocation_id == allocation_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")

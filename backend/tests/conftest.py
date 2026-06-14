@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import time
 
 import pytest
@@ -23,7 +24,7 @@ def make_nostr_event(privkey: PrivateKey, url: str = "http://testserver/auth/nos
         "pubkey": pubkey,
         "created_at": int(time.time()),
         "kind": 27235,
-        "tags": [["u", url], ["method", "POST"]],
+        "tags": [["u", url], ["method", "POST"], ["nonce", os.urandom(8).hex()]],
         "content": "",
     }
     serialized = json.dumps(

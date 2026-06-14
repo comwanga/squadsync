@@ -1,15 +1,21 @@
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
+
+SkillLevel = Literal["beginner", "intermediate", "advanced", "professional"]
+ParticipantRole = Literal[
+    "frontend", "backend", "fullstack", "ai_ml", "ux", "devops",
+    "blockchain", "mobile", "product", "marketing",
+]
 
 
 class ParticipantRegister(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=120)
     email: EmailStr
-    phone: Optional[str] = None
-    skill_level: str
-    role: str
-    years_experience: int = 0
+    phone: Optional[str] = Field(default=None, max_length=40)
+    skill_level: SkillLevel
+    role: ParticipantRole
+    years_experience: int = Field(default=0, ge=0, le=60)
     tech_stack: list[str] = []
     interests: list[str] = []
 
