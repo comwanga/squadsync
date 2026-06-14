@@ -1,6 +1,7 @@
 import { fetchAPI } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Star } from "lucide-react";
+import { Logo } from "@/components/brand/logo";
 
 interface TeamMember { id: string; name: string; role: string; skill_level: string; }
 interface Team {
@@ -35,7 +36,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ alloca
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-primary">SquadSync</h1>
+          <Logo className="h-9 w-auto mx-auto" />
           <p className="text-muted-foreground text-sm mt-1">Team Allocation Results</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
