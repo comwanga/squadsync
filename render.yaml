@@ -35,3 +35,7 @@ services:
       # MUST match the frontend's NEXT_PUBLIC_API_URL exactly (NIP-98 binding).
       - key: PUBLIC_API_URL
         sync: false
+      # Optional: enables AI normalization of free-text "Other" strengths.
+      # Unset = deterministic slug fallback (no AI). Get a key at console.anthropic.com.
+      - key: ANTHROPIC_API_KEY
+        sync: false
