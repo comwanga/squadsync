@@ -7,21 +7,29 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 import { fetchAPI } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { PRIMARY_STRENGTHS, EXPERIENCE_LEVELS } from "@/lib/taxonomy";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().min(1, "Email is required").email("Invalid email"),
   phone: z.string().optional(),
-  skill_level: z.enum(["beginner", "intermediate", "advanced", "professional"]).refine(Boolean, "Select your skill level"),
-  role: z.enum(["frontend","backend","fullstack","ai_ml","ux","devops","blockchain","mobile","product","marketing"]).refine(Boolean, "Select your preferred role"),
-  years_experience: z.number().int().min(0),
-});
+  primary_strength: z.enum([
+    "technical", "design", "planning", "coordination",
+    "communication", "research", "domain_expert", "other",
+  ]),
+  strength_other: z.string().optional(),
+  experience_level: z.enum(["beginner", "intermediate", "advanced"]),
+}).refine(
+  d => d.primary_strength !== "other" || (d.strength_other?.trim().length ?? 0) > 0,
+  { message: "Please describe your strength", path: ["strength_other"] },
+);
 
 type FormData = z.infer<typeof schema>;
 
@@ -35,10 +43,12 @@ interface EventInfo {
 export function RegistrationForm({ event, slug }: { event: EventInfo; slug: string }) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { years_experience: 0, skill_level: "beginner" as const, role: "frontend" as const },
+    defaultValues: { primary_strength: "technical", experience_level: "intermediate" },
   });
+
+  const selectedStrength = watch("primary_strength");
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -84,46 +94,61 @@ export function RegistrationForm({ event, slug }: { event: EventInfo; slug: stri
       </div>
 
       <div className="space-y-1">
-        <Label>Skill Level</Label>
+        <Label>Primary Strength</Label>
         <Controller
-          name="skill_level"
+          name="primary_strength"
           control={control}
           render={({ field }) => (
             <Select onValueChange={field.onChange} value={field.value}>
-              <SelectTrigger><SelectValue placeholder="Select your level" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select your strength" /></SelectTrigger>
               <SelectContent>
-                {["beginner","intermediate","advanced","professional"].map(s => (
-                  <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                {PRIMARY_STRENGTHS.map(s => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
         />
-        {errors.skill_level && <p className="text-sm text-red-500">{errors.skill_level.message}</p>}
       </div>
 
+      {selectedStrength === "other" && (
+        <div className="space-y-1">
+          <Label htmlFor="strength_other">Describe your strength</Label>
+          <Input id="strength_other" placeholder="e.g. Agronomist, GIS analyst, Teacher" {...register("strength_other")} />
+          {errors.strength_other && <p className="text-sm text-red-500">{errors.strength_other.message}</p>}
+        </div>
+      )}
+
       <div className="space-y-1">
-        <Label>Preferred Role</Label>
+        <Label>Experience</Label>
         <Controller
-          name="role"
+          name="experience_level"
           control={control}
           render={({ field }) => (
-            <Select onValueChange={field.onChange} value={field.value}>
-              <SelectTrigger><SelectValue placeholder="Select your role" /></SelectTrigger>
-              <SelectContent>
-                {["frontend","backend","fullstack","ai_ml","ux","devops","blockchain","mobile","product","marketing"].map(r => (
-                  <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Experience">
+              {EXPERIENCE_LEVELS.map(level => {
+                const active = field.value === level.value;
+                return (
+                  <button
+                    key={level.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => field.onChange(level.value)}
+                    className={cn(
+                      "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    {level.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
         />
-        {errors.role && <p className="text-sm text-red-500">{errors.role.message}</p>}
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="years_experience">Years of Experience</Label>
-        <Input id="years_experience" type="number" min={0} {...register("years_experience", { valueAsNumber: true })} />
       </div>
 
       <Button type="submit" className="w-full" size="lg" disabled={loading}>

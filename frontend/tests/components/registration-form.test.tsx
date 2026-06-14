@@ -18,8 +18,8 @@ describe("RegistrationForm", () => {
     render(<RegistrationForm event={mockEvent} slug="abc123" />);
     expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByText(/skill level/i)).toBeInTheDocument();
-    expect(screen.getByText(/preferred role/i)).toBeInTheDocument();
+    expect(screen.getByText(/primary strength/i)).toBeInTheDocument();
+    expect(screen.getByText(/^experience$/i)).toBeInTheDocument();
   });
 
   it("shows validation error when name is empty", async () => {
@@ -38,5 +38,13 @@ describe("RegistrationForm", () => {
     await waitFor(() => {
       expect(screen.getByText(/you're registered/i)).toBeInTheDocument();
     });
+  });
+
+  it("renders the experience segmented control with three options", () => {
+    render(<RegistrationForm event={mockEvent} slug="abc123" />);
+    const radios = screen.getAllByRole("radio");
+    expect(radios).toHaveLength(3);
+    expect(screen.getByRole("radio", { name: /beginner/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /advanced/i })).toBeInTheDocument();
   });
 });
