@@ -51,3 +51,27 @@ class AllocationOut(BaseModel):
     teams: list[TeamOut] = []
 
     model_config = {"from_attributes": True}
+
+
+# --- Public (unauthenticated) views: no email or other PII beyond display name/role ---
+
+class PublicTeamMember(BaseModel):
+    id: UUID
+    name: str
+    role: str
+    skill_level: str
+
+    model_config = {"from_attributes": True}
+
+
+class PublicTeam(BaseModel):
+    id: UUID
+    name: str
+    fairness_score: Optional[float]
+    members: list[PublicTeamMember] = []
+
+
+class PublicAllocationOut(BaseModel):
+    id: UUID
+    status: str
+    teams: list[PublicTeam] = []

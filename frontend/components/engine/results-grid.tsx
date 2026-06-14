@@ -34,8 +34,24 @@ export function ResultsGrid({ allocation, eventId, onPublished }: ResultsGridPro
     }
   };
 
-  const handleCSV = () => {
-    window.open(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/allocations/${allocation.id}/export/csv`, "_blank");
+  const handleCSV = async () => {
+    if (!session?.accessToken) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/allocations/${allocation.id}/export/csv`,
+        { headers: { Authorization: `Bearer ${session.accessToken}` } }
+      );
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `squadsync-${allocation.id}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    }
   };
 
   const handleCopyLink = async () => {

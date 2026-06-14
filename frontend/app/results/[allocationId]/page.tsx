@@ -13,7 +13,7 @@ interface AllocationResult { id: string; status: string; teams: Team[]; }
 
 async function getAllocation(id: string): Promise<AllocationResult | null> {
   try {
-    return await fetchAPI<AllocationResult>(`/api/v1/allocations/${id}/teams`);
+    return await fetchAPI<AllocationResult>(`/api/v1/public/allocations/${id}`);
   } catch {
     return null;
   }

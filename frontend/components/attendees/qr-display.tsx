@@ -15,6 +15,8 @@ export function QRDisplay({ slug }: QRDisplayProps) {
   const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // window.location is only available post-mount (SSR-safe).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(`${window.location.origin}/join/${slug}`);
   }, [slug]);
 
