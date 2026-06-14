@@ -77,3 +77,18 @@ def delete_participant(db: Session, event_id: UUID, participant_id: UUID, user_i
     db.delete(p)
     db.commit()
     return p
+
+
+def override_category(db: Session, event_id: UUID, participant_id: UUID, user_id: UUID, normalized_strength: str) -> Participant:
+    from app.services.event_service import _assert_organizer
+    _assert_organizer(db, event_id, user_id)
+    p = db.query(Participant).filter(
+        Participant.id == participant_id, Participant.event_id == event_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    p.normalized_strength = normalized_strength
+    p.strength_source = "manual"
+    db.commit()
+    db.refresh(p)
+    return p

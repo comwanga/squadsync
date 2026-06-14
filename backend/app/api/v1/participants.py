@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
-from app.schemas.participant import ParticipantRegister, ParticipantOut, EventPublicInfo
+from app.schemas.participant import ParticipantRegister, ParticipantOut, EventPublicInfo, ParticipantCategoryUpdate
 from app.services.registration_service import (
-    get_public_event, register_participant, list_participants, delete_participant,
+    get_public_event, register_participant, list_participants, delete_participant, override_category,
 )
 
 router = APIRouter()
@@ -27,12 +27,23 @@ def register(slug: str, req: ParticipantRegister, db: Session = Depends(get_db))
 @router.get("/{event_id}/participants", response_model=list[ParticipantOut])
 def list_all(
     event_id: UUID,
-    role: Optional[str] = Query(None),
-    skill: Optional[str] = Query(None),
+    strength: Optional[str] = Query(None),
+    experience: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return list_participants(db, event_id, current_user.id, role, skill)
+    return list_participants(db, event_id, current_user.id, strength, experience)
+
+
+@router.patch("/{event_id}/participants/{participant_id}", response_model=ParticipantOut)
+def patch_category(
+    event_id: UUID,
+    participant_id: UUID,
+    req: ParticipantCategoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return override_category(db, event_id, participant_id, current_user.id, req.normalized_strength)
 
 
 @router.delete("/{event_id}/participants/{participant_id}", response_model=ParticipantOut)
