@@ -4,6 +4,7 @@ import { useEvents } from "@/hooks/use-events";
 import { EventCard } from "@/components/events/event-card";
 import { CreateEventDialog } from "@/components/events/create-event-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QuickGuideButton } from "@/components/onboarding/quick-guide-button";
 
 export function EventsView({ title, subtitle }: { title: string; subtitle: string }) {
   const { events, isLoading, error } = useEvents();
@@ -15,7 +16,10 @@ export function EventsView({ title, subtitle }: { title: string; subtitle: strin
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
           <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
-        <CreateEventDialog />
+        <div className="flex items-center gap-2">
+          <QuickGuideButton />
+          <CreateEventDialog />
+        </div>
       </div>
 
       {isLoading ? (
