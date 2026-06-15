@@ -13,6 +13,7 @@ services:
     name: squadsync-api
     runtime: docker
     plan: free
+    branch: main        # deploy branch — keep in sync with Vercel's production branch
     rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
