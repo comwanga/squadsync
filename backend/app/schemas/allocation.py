@@ -48,6 +48,8 @@ class AllocationOut(BaseModel):
     snapshot_hash: str
     status: str
     constraint_warnings: dict
+    ai_normalized: int = 0
+    auto_normalized: int = 0
     teams: list[TeamOut] = []
 
     model_config = {"from_attributes": True}

@@ -37,12 +37,22 @@ def _build_allocation_out(db: Session, allocation: Allocation) -> AllocationOut:
             "role_balance_score": team.role_balance_score,
             "members": members_out,
         }))
+    ai_n = db.query(Participant).filter(
+        Participant.event_id == allocation.event_id,
+        Participant.strength_source == "ai",
+    ).count()
+    auto_n = db.query(Participant).filter(
+        Participant.event_id == allocation.event_id,
+        Participant.strength_source == "fallback",
+    ).count()
     return AllocationOut.model_validate({
         "id": allocation.id,
         "event_id": allocation.event_id,
         "snapshot_hash": allocation.snapshot_hash,
         "status": allocation.status,
         "constraint_warnings": allocation.constraint_warnings or {},
+        "ai_normalized": ai_n,
+        "auto_normalized": auto_n,
         "teams": teams_out,
     })
 

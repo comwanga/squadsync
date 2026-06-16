@@ -47,7 +47,8 @@ def test_ai_maps_other_to_category(db, monkeypatch):
     e, p = _event_with_other(db)
     monkeypatch.setattr(cat.settings, "ANTHROPIC_API_KEY", "test-key")  # enable the AI branch
     with patch.object(cat, "_classify", return_value={str(p.id): "domain_expert"}):
-        cat.normalize_pending(db, e.id)
+        counts = cat.normalize_pending(db, e.id)
+    assert counts == {"ai": 1, "fallback": 0}
     db.refresh(p)
     assert p.normalized_strength == "domain_expert"
     assert p.strength_source == "ai"
@@ -56,7 +57,8 @@ def test_ai_maps_other_to_category(db, monkeypatch):
 def test_fallback_when_no_key(db, monkeypatch):
     e, p = _event_with_other(db)
     monkeypatch.setattr(cat.settings, "ANTHROPIC_API_KEY", None)
-    cat.normalize_pending(db, e.id)
+    counts = cat.normalize_pending(db, e.id)
+    assert counts == {"ai": 0, "fallback": 1}
     db.refresh(p)
     assert p.normalized_strength  # slug of "Agronomist"
     assert p.strength_source == "fallback"
