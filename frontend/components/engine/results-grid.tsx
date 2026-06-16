@@ -20,6 +20,7 @@ export function ResultsGrid({ allocation, eventId, onPublished }: ResultsGridPro
   const { data: session } = useSession();
   const [publishing, setPublishing] = useState(false);
   const warningEntries = Object.entries(allocation.constraint_warnings);
+  const note = normalizationNote(allocation.ai_normalized, allocation.auto_normalized);
 
   const handlePublish = async () => {
     if (!session?.accessToken) return;
@@ -67,9 +68,9 @@ export function ResultsGrid({ allocation, eventId, onPublished }: ResultsGridPro
 
   return (
     <div className="space-y-4">
-      {normalizationNote(allocation.ai_normalized, allocation.auto_normalized) && (
+      {note && (
         <div className="text-sm text-muted-foreground bg-violet-50 border border-violet-100 rounded-lg px-4 py-2">
-          {normalizationNote(allocation.ai_normalized, allocation.auto_normalized)}
+          {note}
         </div>
       )}
       {warningEntries.length > 0 && (
