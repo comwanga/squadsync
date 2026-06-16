@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
@@ -20,8 +20,12 @@ def create(req: EventCreate, db: Session = Depends(get_db), current_user: User =
 
 
 @router.get("", response_model=list[EventOut])
-def list_all(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return list_events(db, current_user.id)
+def list_all(
+    archived: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return list_events(db, current_user.id, archived)
 
 
 @router.get("/{event_id}", response_model=EventOut)
