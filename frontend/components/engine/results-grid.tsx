@@ -8,6 +8,7 @@ import { TeamCard } from "./team-card";
 import { publishAllocation } from "@/hooks/use-allocation";
 import { Button } from "@/components/ui/button";
 import type { Allocation } from "@/hooks/use-allocation";
+import { normalizationNote } from "@/lib/allocation-notes";
 
 interface ResultsGridProps {
   allocation: Allocation;
@@ -66,6 +67,11 @@ export function ResultsGrid({ allocation, eventId, onPublished }: ResultsGridPro
 
   return (
     <div className="space-y-4">
+      {normalizationNote(allocation.ai_normalized, allocation.auto_normalized) && (
+        <div className="text-sm text-muted-foreground bg-violet-50 border border-violet-100 rounded-lg px-4 py-2">
+          {normalizationNote(allocation.ai_normalized, allocation.auto_normalized)}
+        </div>
+      )}
       {warningEntries.length > 0 && (
         <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
