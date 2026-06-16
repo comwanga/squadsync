@@ -12,6 +12,7 @@ class Event(Base):
     owner_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    event_at = Column(DateTime(timezone=False), nullable=True)
     participant_limit = Column(Integer, nullable=True)
     team_count = Column(Integer, nullable=False)
     status = Column(
