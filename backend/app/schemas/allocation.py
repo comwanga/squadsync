@@ -77,3 +77,7 @@ class PublicAllocationOut(BaseModel):
     id: UUID
     status: str
     teams: list[PublicTeam] = []
+
+
+class MemberMove(BaseModel):
+    team_id: UUID

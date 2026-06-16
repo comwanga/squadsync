@@ -7,8 +7,11 @@ from app.api.deps import get_current_user, get_db
 from app.models.allocation import Allocation
 from app.models.team import Team, TeamMember
 from app.models.participant import Participant
-from app.schemas.allocation import TeamOut, TeamMemberOut
+from app.models.user import User
+from app.schemas.allocation import TeamOut, TeamMemberOut, AllocationOut, MemberMove
 from app.services.event_service import assert_allocation_organizer
+from app.services.allocation_engine import move_participant
+from app.api.v1.allocation import _build_allocation_out
 
 router = APIRouter()
 
@@ -58,3 +61,18 @@ def get_team(allocation_id: UUID, team_id: UUID, db: Session = Depends(get_db), 
         role_balance_score=team.role_balance_score,
         members=[TeamMemberOut.model_validate(m) for m in members],
     )
+
+
+@router.patch("/{allocation_id}/members/{participant_id}", response_model=AllocationOut)
+def move_member(
+    allocation_id: UUID,
+    participant_id: UUID,
+    req: MemberMove,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    allocation = assert_allocation_organizer(db, allocation_id, current_user.id)
+    if allocation.status != "draft":
+        raise HTTPException(status_code=409, detail="Allocation is published; teams are locked")
+    move_participant(db, allocation, participant_id, req.team_id)
+    return _build_allocation_out(db, allocation)

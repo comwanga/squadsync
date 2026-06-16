@@ -1,5 +1,6 @@
 import hashlib
 import statistics
+from collections import Counter
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -28,7 +29,80 @@ def compute_composite_score(experience_level: str) -> float:
     return EXPERIENCE_SCORE[experience_level]
 
 
-def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> Allocation:
+def score_teams(team_score_sums, team_strength_counts, role_constraints):
+    """Pure team-quality scoring, shared by generation and post-edit recompute.
+
+    Returns (skill_score, role_balance_score, fairness_score), unrounded (0-100).
+    - skill: 100*(1 - stdev/mean) of team score-sums (even = high).
+    - role_balance: % of required (strength, count) slots filled across teams.
+    - fairness: 0.6*skill + 0.4*role_balance.
+    """
+    mean_sc = statistics.mean(team_score_sums) if team_score_sums else 1.0
+    std_sc = statistics.stdev(team_score_sums) if len(team_score_sums) > 1 else 0.0
+    skill_score = max(0.0, 100 * (1 - std_sc / mean_sc)) if mean_sc else 0.0
+
+    n_teams = len(team_score_sums)
+    total_required = sum(n_teams * v for v in role_constraints.values()) if role_constraints else 0
+    fulfilled = 0
+    for counts in team_strength_counts:
+        for role, req in role_constraints.items():
+            fulfilled += min(counts.get(role, 0), req)
+    role_balance_score = (100 * fulfilled / total_required) if total_required else 100.0
+
+    fairness_score = (skill_score * 0.6) + (role_balance_score * 0.4)
+    return skill_score, role_balance_score, fairness_score
+
+
+def move_participant(db: Session, allocation: Allocation, participant_id: UUID, target_team_id: UUID) -> None:
+    """Reassign a participant to another team within a draft allocation, then
+    recompute the allocation's team scores. Raises 404 on bad team/participant."""
+    teams = db.query(Team).filter(Team.allocation_id == allocation.id).all()
+    team_ids = {t.id for t in teams}
+    if target_team_id not in team_ids:
+        raise AllocationError(status_code=404, detail="Target team not in this allocation")
+
+    tm = (
+        db.query(TeamMember)
+        .filter(TeamMember.participant_id == participant_id, TeamMember.team_id.in_(team_ids))
+        .first()
+    )
+    if tm is None:
+        raise AllocationError(status_code=404, detail="Participant not in this allocation")
+
+    tm.team_id = target_team_id
+    db.flush()
+
+    config = db.query(AllocationConfig).filter(AllocationConfig.event_id == allocation.event_id).first()
+    role_constraints = (config.role_constraints if config else {}) or {}
+    team_score_sums, team_strength_counts = [], []
+    for team in teams:
+        members = (
+            db.query(Participant)
+            .join(TeamMember, Participant.id == TeamMember.participant_id)
+            .filter(TeamMember.team_id == team.id)
+            .all()
+        )
+        team_score_sums.append(sum(m.composite_score or 0.0 for m in members))
+        team_strength_counts.append(Counter((m.normalized_strength or m.primary_strength) for m in members))
+    skill_score, role_balance_score, fairness_score = score_teams(
+        team_score_sums, team_strength_counts, role_constraints
+    )
+    for team in teams:
+        team.skill_score = round(skill_score, 1)
+        team.role_balance_score = round(role_balance_score, 1)
+        team.fairness_score = round(fairness_score, 1)
+    db.commit()
+
+
+def _tiebreak(participant_id, seed: int) -> str:
+    """Stable tiebreak key. seed=0 preserves insertion-independent id ordering;
+    a non-zero seed reshuffles ties to produce a different valid allocation."""
+    if seed == 0:
+        return str(participant_id)
+    return hashlib.sha256(f"{participant_id}:{seed}".encode()).hexdigest()
+
+
+def run_allocation(db: Session, event_id: UUID, config: AllocationConfig, seed: int = 0) -> Allocation:
     # Deterministic base ordering so ties break the same way on every run / DB engine.
     participants = (
         db.query(Participant)
@@ -63,7 +137,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
     # Pass 1: Anchors (Sc >= 3.0)
     anchors = sorted(
         [p for p in participants if p.composite_score >= 3.0],
-        key=lambda x: (-x.composite_score, str(x.id)),
+        key=lambda x: (-x.composite_score, _tiebreak(x.id, seed)),
     )
     for i, anchor in enumerate(anchors):
         idx = i % n_teams
@@ -75,7 +149,7 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
     # Pass 2: Intermediates (1.5 <= Sc < 3.0)
     intermediates = sorted(
         [p for p in participants if p.id in unassigned and 1.5 <= p.composite_score < 3.0],
-        key=lambda x: (-x.composite_score, str(x.id)),
+        key=lambda x: (-x.composite_score, _tiebreak(x.id, seed)),
     )
     for p in intermediates:
         idx = min(range(n_teams), key=lambda i: buckets[i]["score_sum"])
@@ -149,17 +223,13 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig) -> All
         buckets[idx]["score_sum"] += p.composite_score
         buckets[idx]["roles"].append(p.normalized_strength or p.primary_strength)
 
-    # Compute global skill scores
-    score_sums = [b["score_sum"] for b in buckets]
-    mean_sc = statistics.mean(score_sums) if score_sums else 1.0
-    std_sc = statistics.stdev(score_sums) if len(score_sums) > 1 else 0.0
-    skill_score = max(0.0, 100 * (1 - std_sc / mean_sc)) if mean_sc else 0.0
-
-    total_constraints = sum(n_teams * v for v in role_constraints.values()) if role_constraints else 0
-    total_warnings = sum(len(v) for v in constraint_warnings.values())
-    fulfilled = total_constraints - total_warnings
-    role_balance_score = (100 * fulfilled / total_constraints) if total_constraints else 100.0
-    fairness_score = (skill_score * 0.6) + (role_balance_score * 0.4)
+    # Team scores (shared with post-edit recompute). constraint_warnings above
+    # already records shortfalls; score_teams derives the same role balance from counts.
+    team_score_sums = [b["score_sum"] for b in buckets]
+    team_strength_counts = [Counter(b["roles"]) for b in buckets]
+    skill_score, role_balance_score, fairness_score = score_teams(
+        team_score_sums, team_strength_counts, role_constraints
+    )
 
     # Persist
     allocation = Allocation(

@@ -229,3 +229,22 @@ def test_strength_constraint_relocates_from_surplus(db, owner):
             .filter(TeamMember.team_id == t.id).all()
         ]
         assert "technical" in strengths
+
+
+def test_seed_zero_is_deterministic(db, event, config):
+    for _ in range(9):
+        add_participant(db, event.id, "intermediate", "technical")
+    a1 = run_allocation(db, event.id, config, seed=0)
+    a2 = run_allocation(db, event.id, config, seed=0)
+    assert _memberships(db, a1.id) == _memberships(db, a2.id)
+
+
+def test_different_seeds_assign_everyone(db, event, config):
+    for i in range(9):
+        add_participant(db, event.id, "intermediate", "technical")
+    a = run_allocation(db, event.id, config, seed=12345)
+    from app.models.team import Team, TeamMember
+    assigned = db.query(TeamMember).join(Team).filter(Team.allocation_id == a.id).count()
+    assert assigned == 9
+    teams = db.query(Team).filter(Team.allocation_id == a.id).all()
+    assert len(teams) == 3

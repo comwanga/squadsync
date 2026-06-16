@@ -70,3 +70,15 @@ export async function runAllocation(token: string, eventId: string) {
 export async function publishAllocation(token: string, eventId: string, allocationId: string) {
   return fetchAPI(`/api/v1/events/${eventId}/allocations/${allocationId}/publish`, { method: "POST", token });
 }
+
+export async function moveMember(token: string, allocationId: string, participantId: string, teamId: string) {
+  return fetchAPI<Allocation>(
+    `/api/v1/allocations/${allocationId}/members/${participantId}`,
+    { method: "PATCH", body: { team_id: teamId }, token }
+  );
+}
+
+export async function regenerateAllocation(token: string, eventId: string) {
+  // The allocate endpoint reseeds and replaces the draft, so this yields a new draft.
+  return runAllocation(token, eventId);
+}

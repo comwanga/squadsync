@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { AlertTriangle, Download, Link2, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Download, Link2, CheckCircle2, RefreshCw } from "lucide-react";
 import { TeamCard } from "./team-card";
-import { publishAllocation } from "@/hooks/use-allocation";
+import { publishAllocation, moveMember, regenerateAllocation } from "@/hooks/use-allocation";
 import { Button } from "@/components/ui/button";
 import type { Allocation } from "@/hooks/use-allocation";
 import { normalizationNote } from "@/lib/allocation-notes";
@@ -14,13 +14,16 @@ interface ResultsGridProps {
   allocation: Allocation;
   eventId: string;
   onPublished: () => void;
+  onChanged: (a: Allocation) => void;
 }
 
-export function ResultsGrid({ allocation, eventId, onPublished }: ResultsGridProps) {
+export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: ResultsGridProps) {
   const { data: session } = useSession();
   const [publishing, setPublishing] = useState(false);
+  const [working, setWorking] = useState(false);  // a move or regenerate is in flight
   const warningEntries = Object.entries(allocation.constraint_warnings);
   const note = normalizationNote(allocation.ai_normalized, allocation.auto_normalized);
+  const isDraft = allocation.status === "draft";
 
   const handlePublish = async () => {
     if (!session?.accessToken) return;
@@ -33,6 +36,34 @@ export function ResultsGrid({ allocation, eventId, onPublished }: ResultsGridPro
       toast.error(err instanceof Error ? err.message : "Failed to publish");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleMove = async (participantId: string, teamId: string) => {
+    if (!session?.accessToken || working) return;
+    setWorking(true);
+    try {
+      const updated = await moveMember(session.accessToken, allocation.id, participantId, teamId);
+      onChanged(updated);
+      toast.success("Moved");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Move failed");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!session?.accessToken || working) return;
+    setWorking(true);
+    try {
+      const a = await regenerateAllocation(session.accessToken, eventId);
+      onChanged(a);
+      toast.success("Regenerated");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Regenerate failed");
+    } finally {
+      setWorking(false);
     }
   };
 
@@ -88,12 +119,25 @@ export function ResultsGrid({ allocation, eventId, onPublished }: ResultsGridPro
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {allocation.teams.map(team => <TeamCard key={team.id} team={team} />)}
+        {allocation.teams.map(team => (
+          <TeamCard
+            key={team.id}
+            team={team}
+            otherTeams={isDraft ? allocation.teams.filter(t => t.id !== team.id).map(t => ({ id: t.id, name: t.name })) : undefined}
+            onMove={isDraft ? handleMove : undefined}
+            moving={working}
+          />
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-2 pt-2">
-        {allocation.status === "draft" && (
-          <Button onClick={handlePublish} disabled={publishing}>
+        {isDraft && (
+          <Button variant="outline" onClick={handleRegenerate} disabled={working}>
+            <RefreshCw className="mr-2 h-4 w-4" /> {working ? "Working…" : "Regenerate"}
+          </Button>
+        )}
+        {isDraft && (
+          <Button onClick={handlePublish} disabled={publishing || working}>
             <CheckCircle2 className="mr-2 h-4 w-4" />
             {publishing ? "Publishing…" : "Publish Teams"}
           </Button>
