@@ -42,7 +42,7 @@ export function TeamCard({ team }: { team: Team }) {
               key={strength}
               className={`px-1.5 py-0.5 rounded text-xs font-medium capitalize ${strengthColor[strength] ?? "bg-slate-100 text-slate-800"}`}
             >
-              {strength.replace("_", " ")} ×{count}
+              {strength.replaceAll("_", " ")} ×{count}
             </span>
           ))}
         </div>
@@ -72,7 +72,7 @@ export function TeamCard({ team }: { team: Team }) {
               <li key={m.id} className="flex justify-between">
                 <span className="font-medium">{m.name}</span>
                 <span className="text-muted-foreground capitalize">
-                  {(m.normalized_strength ?? "—").replace("_", " ")} · {m.experience_level}
+                  {(m.normalized_strength ?? "—").replaceAll("_", " ")} · {m.experience_level}
                 </span>
               </li>
             ))}
