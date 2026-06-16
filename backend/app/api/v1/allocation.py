@@ -1,3 +1,4 @@
+import random
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,24 @@ from app.models.team import Team, TeamMember
 from app.models.participant import Participant
 
 router = APIRouter()
+
+
+def _delete_draft_allocations(db: Session, event_id: UUID) -> None:
+    """Remove the event's unpublished draft allocations (+ their teams/members)
+    so 'Regenerate' replaces the draft rather than piling up. Published ones stay."""
+    draft_ids = [
+        a.id for a in db.query(Allocation).filter(
+            Allocation.event_id == event_id, Allocation.status == "draft"
+        ).all()
+    ]
+    if not draft_ids:
+        return
+    team_ids = [t.id for t in db.query(Team).filter(Team.allocation_id.in_(draft_ids)).all()]
+    if team_ids:
+        db.query(TeamMember).filter(TeamMember.team_id.in_(team_ids)).delete(synchronize_session=False)
+    db.query(Team).filter(Team.allocation_id.in_(draft_ids)).delete(synchronize_session=False)
+    db.query(Allocation).filter(Allocation.id.in_(draft_ids)).delete(synchronize_session=False)
+    db.commit()
 
 
 def _build_allocation_out(db: Session, allocation: Allocation) -> AllocationOut:
@@ -102,7 +121,8 @@ def allocate(event_id: UUID, db: Session = Depends(get_db), current_user: User =
         db.add(config)
         db.commit()
     normalize_pending(db, event_id)
-    allocation = run_allocation(db, event_id, config)
+    _delete_draft_allocations(db, event_id)
+    allocation = run_allocation(db, event_id, config, seed=random.randint(1, 2**31 - 1))
     return _build_allocation_out(db, allocation)
 
 
