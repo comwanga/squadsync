@@ -19,6 +19,7 @@ import {
 const schema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
+  event_at: z.string().optional(),
   team_count: z.coerce.number().int().min(2, "Minimum 2 teams"),
   participant_limit: z.preprocess(
     val => (val === "" || val === null || val === undefined ? undefined : val),
@@ -46,6 +47,7 @@ export function CreateEventDialog() {
       const event = await createEvent(session.accessToken, {
         title: data.title,
         description: data.description,
+        event_at: data.event_at || undefined,
         team_count: data.team_count,
         participant_limit: data.participant_limit,
       });
@@ -91,6 +93,10 @@ export function CreateEventDialog() {
             <p className="text-xs text-muted-foreground">
               Describe the event — this helps SquadSync group attendees more accurately.
             </p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="event_at">Event date &amp; time (optional)</Label>
+            <Input id="event_at" type="datetime-local" {...register("event_at")} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">

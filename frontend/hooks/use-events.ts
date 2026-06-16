@@ -6,6 +6,7 @@ export interface Event {
   id: string;
   title: string;
   description?: string;
+  event_at?: string;
   participant_limit?: number;
   team_count: number;
   status: string;
@@ -17,11 +18,12 @@ function useToken() {
   return { token: session?.accessToken, isSessionLoading: status === "loading" };
 }
 
-export function useEvents() {
+export function useEvents(archived = false) {
   const { token, isSessionLoading } = useToken();
+  const path = archived ? "/api/v1/events?archived=true" : "/api/v1/events";
   const { data, error, isLoading } = useSWR(
-    token ? ["/api/v1/events", token] : null,
-    ([path, t]) => fetchAPI<Event[]>(path, { token: t })
+    token ? [path, token] : null,
+    ([p, t]) => fetchAPI<Event[]>(p, { token: t })
   );
   return { events: data ?? [], error, isLoading: isLoading || isSessionLoading };
 }
@@ -40,6 +42,7 @@ export interface CreateEventPayload {
   description?: string;
   team_count: number;
   participant_limit?: number;
+  event_at?: string;
 }
 
 export async function createEvent(token: string, payload: CreateEventPayload) {
@@ -61,4 +64,15 @@ export async function updateEvent(token: string, eventId: string, payload: Parti
   mutate([`/api/v1/events/${eventId}`, token]);
   mutate(["/api/v1/events", token]);
   return result;
+}
+
+export async function archiveEvent(token: string, eventId: string) {
+  const result = await updateEvent(token, eventId, { status: "archived" });
+  mutate(["/api/v1/events", token]);
+  return result;
+}
+
+export async function deleteEvent(token: string, eventId: string) {
+  await fetchAPI(`/api/v1/events/${eventId}`, { method: "DELETE", token });
+  mutate(["/api/v1/events", token]);
 }

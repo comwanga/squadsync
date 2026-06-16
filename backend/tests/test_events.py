@@ -40,12 +40,12 @@ def test_update_event(client, auth_headers):
     assert res.json()["title"] == "New"
 
 
-def test_delete_event_archives_it(client, auth_headers):
+def test_delete_event_hard_deletes_it(client, auth_headers):
     created = client.post("/api/v1/events", headers=auth_headers, json={"title": "E1", "team_count": 5}).json()
     res = client.delete(f"/api/v1/events/{created['id']}", headers=auth_headers)
     assert res.status_code == 200
-    detail = client.get(f"/api/v1/events/{created['id']}", headers=auth_headers).json()
-    assert detail["status"] == "archived"
+    assert res.json()["id"] == created["id"]
+    assert client.get(f"/api/v1/events/{created['id']}", headers=auth_headers).status_code == 404
 
 
 def _make_user(client):

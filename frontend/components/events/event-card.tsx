@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Calendar, Users, ArrowRight } from "lucide-react";
+import { Calendar, Users, ArrowRight, Boxes } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Event } from "@/hooks/use-events";
+import { formatEventDate } from "@/lib/format-date";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   draft: "secondary",
@@ -26,12 +27,16 @@ export function EventCard({ event }: { event: Event }) {
       <CardContent className="pb-2">
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" />
-            {event.participant_limit ? `Max ${event.participant_limit}` : "No limit"}
+            <Calendar className="h-3.5 w-3.5" />
+            {formatEventDate(event.event_at)}
           </span>
           <span className="flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5" />
+            <Boxes className="h-3.5 w-3.5" />
             {event.team_count} teams
+          </span>
+          <span className="flex items-center gap-1">
+            <Users className="h-3.5 w-3.5" />
+            {event.participant_limit ? `Max ${event.participant_limit}` : "No limit"}
           </span>
         </div>
       </CardContent>

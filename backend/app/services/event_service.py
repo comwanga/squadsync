@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.event import Event, EventCoOrganizer
 from app.models.user import User
-from app.schemas.event import EventCreate, EventUpdate, CoOrganizerInvite
+from app.schemas.event import EventCreate, EventUpdate, CoOrganizerInvite, EventOut
 
 
 def _generate_slug() -> str:
@@ -53,12 +53,13 @@ def create_event(db: Session, req: EventCreate, owner_id: UUID) -> Event:
     return event
 
 
-def list_events(db: Session, user_id: UUID) -> list[Event]:
-    owned = db.query(Event).filter(Event.owner_id == user_id, Event.status != "archived").all()
+def list_events(db: Session, user_id: UUID, archived: bool = False) -> list[Event]:
+    status_filter = (Event.status == "archived") if archived else (Event.status != "archived")
+    owned = db.query(Event).filter(Event.owner_id == user_id, status_filter).all()
     co_event_ids = [
         row.event_id for row in db.query(EventCoOrganizer).filter(EventCoOrganizer.user_id == user_id).all()
     ]
-    co_events = db.query(Event).filter(Event.id.in_(co_event_ids), Event.status != "archived").all()
+    co_events = db.query(Event).filter(Event.id.in_(co_event_ids), status_filter).all()
     seen = {str(e.id) for e in owned}
     return owned + [e for e in co_events if str(e.id) not in seen]
 
@@ -76,12 +77,37 @@ def update_event(db: Session, event_id: UUID, user_id: UUID, req: EventUpdate) -
     return event
 
 
-def delete_event(db: Session, event_id: UUID, user_id: UUID) -> Event:
+def delete_event(db: Session, event_id: UUID, user_id: UUID) -> EventOut:
+    """Permanently delete an event and all of its child rows (hard delete).
+
+    Owner-only: this is irreversible, so co-organizers may archive (PATCH status)
+    but not permanently destroy an event they don't own.
+
+    NOTE: keep the cascade below in sync with every table that has an event_id (or
+    transitive) FK. New child tables must be added here or their rows will orphan.
+    """
+    from app.models.allocation import Allocation, AllocationConfig
+    from app.models.team import Team, TeamMember
+    from app.models.participant import Participant
+
     event = _assert_organizer(db, event_id, user_id)
-    event.status = "archived"
+    if str(event.owner_id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Only the owner can delete an event")
+    snapshot = EventOut.model_validate(event)  # capture before deletion
+
+    alloc_ids = [a.id for a in db.query(Allocation).filter(Allocation.event_id == event_id).all()]
+    if alloc_ids:
+        team_ids = [t.id for t in db.query(Team).filter(Team.allocation_id.in_(alloc_ids)).all()]
+        if team_ids:
+            db.query(TeamMember).filter(TeamMember.team_id.in_(team_ids)).delete(synchronize_session=False)
+        db.query(Team).filter(Team.allocation_id.in_(alloc_ids)).delete(synchronize_session=False)
+        db.query(Allocation).filter(Allocation.event_id == event_id).delete(synchronize_session=False)
+    db.query(AllocationConfig).filter(AllocationConfig.event_id == event_id).delete(synchronize_session=False)
+    db.query(Participant).filter(Participant.event_id == event_id).delete(synchronize_session=False)
+    db.query(EventCoOrganizer).filter(EventCoOrganizer.event_id == event_id).delete(synchronize_session=False)
+    db.delete(event)
     db.commit()
-    db.refresh(event)
-    return event
+    return snapshot
 
 
 def invite_co_organizer(db: Session, event_id: UUID, user_id: UUID, req: CoOrganizerInvite) -> None:

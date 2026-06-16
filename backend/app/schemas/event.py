@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
@@ -10,6 +11,7 @@ class EventCreate(BaseModel):
     description: Optional[str] = None
     participant_limit: Optional[int] = Field(default=None, ge=1)
     team_count: int = Field(ge=2)
+    event_at: Optional[datetime] = None
 
 
 class EventUpdate(BaseModel):
@@ -18,6 +20,7 @@ class EventUpdate(BaseModel):
     participant_limit: Optional[int] = Field(default=None, ge=1)
     team_count: Optional[int] = Field(default=None, ge=2)
     status: Optional[EventStatus] = None
+    event_at: Optional[datetime] = None
 
 
 class EventOut(BaseModel):
@@ -25,6 +28,7 @@ class EventOut(BaseModel):
     owner_id: UUID
     title: str
     description: Optional[str]
+    event_at: Optional[datetime]
     participant_limit: Optional[int]
     team_count: int
     status: str
