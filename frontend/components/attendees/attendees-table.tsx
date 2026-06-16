@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { CONCRETE_STRENGTHS, EXPERIENCE_LEVELS } from "@/lib/taxonomy";
 import { SourceBadge } from "@/components/attendees/source-badge";
+import { isKnownStrength, categoryPlaceholder } from "@/lib/category-display";
 
 interface Participant {
   id: string;
@@ -113,9 +114,12 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
                     <td className="px-4 py-3 font-medium whitespace-nowrap">{p.name}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.email}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <Select value={p.normalized_strength ?? undefined} onValueChange={v => saveCategory(p.id, v)}>
+                      <Select
+                        value={isKnownStrength(p.normalized_strength) ? p.normalized_strength : undefined}
+                        onValueChange={v => saveCategory(p.id, v)}
+                      >
                         <SelectTrigger className="h-8 w-44">
-                          <SelectValue placeholder={p.strength_other ? `${p.strength_other} (pending)` : "Set category"} />
+                          <SelectValue placeholder={categoryPlaceholder(p)} />
                         </SelectTrigger>
                         <SelectContent>
                           {CONCRETE_STRENGTHS.map(s => (
