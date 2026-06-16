@@ -1,6 +1,6 @@
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 class AllocationConfigIn(BaseModel):
@@ -77,6 +77,10 @@ class PublicAllocationOut(BaseModel):
     id: UUID
     status: str
     teams: list[PublicTeam] = []
+
+
+class FindTeamRequest(BaseModel):
+    email: EmailStr
 
 
 class MemberMove(BaseModel):

@@ -1,13 +1,14 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.allocation import Allocation
 from app.models.participant import Participant
 from app.models.team import Team, TeamMember
-from app.schemas.allocation import PublicAllocationOut, PublicTeam, PublicTeamMember
+from app.schemas.allocation import FindTeamRequest, PublicAllocationOut, PublicTeam, PublicTeamMember
 
 router = APIRouter()
 
@@ -39,3 +40,47 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
             members=[PublicTeamMember.model_validate(m) for m in members],
         ))
     return PublicAllocationOut(id=allocation.id, status=allocation.status, teams=teams)
+
+
+@router.post("/allocations/{allocation_id}/find-team", response_model=PublicTeam)
+def find_my_team(allocation_id: UUID, req: FindTeamRequest, db: Session = Depends(get_db)):
+    """Public lookup: which team is this registered email on? Published-only.
+
+    Returns the matching team (names only, no PII). 404 for unpublished allocations
+    or emails not registered on the event.
+    """
+    allocation = db.query(Allocation).filter(Allocation.id == allocation_id).first()
+    if not allocation or allocation.status != "published":
+        raise HTTPException(status_code=404, detail="Results not found")
+
+    participant = (
+        db.query(Participant)
+        .filter(
+            Participant.event_id == allocation.event_id,
+            func.lower(Participant.email) == req.email.lower(),
+        )
+        .first()
+    )
+    team = None
+    if participant:
+        team = (
+            db.query(Team)
+            .join(TeamMember, Team.id == TeamMember.team_id)
+            .filter(Team.allocation_id == allocation.id, TeamMember.participant_id == participant.id)
+            .first()
+        )
+    if not team:
+        raise HTTPException(status_code=404, detail="Not found on this event")
+
+    members = (
+        db.query(Participant)
+        .join(TeamMember, Participant.id == TeamMember.participant_id)
+        .filter(TeamMember.team_id == team.id)
+        .all()
+    )
+    return PublicTeam(
+        id=team.id,
+        name=team.name,
+        fairness_score=team.fairness_score,
+        members=[PublicTeamMember.model_validate(m) for m in members],
+    )
