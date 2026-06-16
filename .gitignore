@@ -28,5 +28,4 @@ Thumbs.db
 # Logs & artifacts
 *.log
 vitest-output.txt
-screenshots/
 

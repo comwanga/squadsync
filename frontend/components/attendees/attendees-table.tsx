@@ -10,6 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { CONCRETE_STRENGTHS, EXPERIENCE_LEVELS } from "@/lib/taxonomy";
+import { SourceBadge } from "@/components/attendees/source-badge";
 
 interface Participant {
   id: string;
@@ -128,7 +129,7 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
                         {p.experience_level}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground capitalize whitespace-nowrap">{p.strength_source}</td>
+                    <td className="px-4 py-3 whitespace-nowrap"><SourceBadge source={p.strength_source} /></td>
                     <td className="px-4 py-3 font-mono whitespace-nowrap">{p.composite_score?.toFixed(2) ?? "—"}</td>
                   </tr>
                 ))}

@@ -14,8 +14,8 @@ export interface TeamMember {
   id: string;
   name: string;
   email: string;
-  role: string;
-  skill_level: string;
+  normalized_strength?: string;
+  experience_level: string;
   composite_score?: number;
 }
 
@@ -34,6 +34,8 @@ export interface Allocation {
   snapshot_hash: string;
   status: string;
   constraint_warnings: Record<string, string[]>;
+  ai_normalized?: number;
+  auto_normalized?: number;
   teams: Team[];
 }
 

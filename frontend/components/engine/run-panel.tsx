@@ -10,9 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Allocation } from "@/hooks/use-allocation";
 
 const PASSES = [
-  "Pass 1 — Distributing anchors (Advanced / Professional)",
+  "Pass 1 — Distributing anchors (Advanced)",
   "Pass 2 — Core balance pipeline (Intermediate)",
-  "Pass 3 — Role constraint enforcement",
+  "Pass 3 — Strength constraint enforcement",
   "Pass 4 — Beginner fill",
 ];
 
@@ -54,6 +54,9 @@ export function RunPanel({ eventId, participantCount, onComplete }: RunPanelProp
         <p className="text-sm text-muted-foreground">
           {participantCount} participants ready for allocation.
           The engine will run 4 passes to distribute teams fairly.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Free-text &quot;Other&quot; strengths are categorized by AI before allocation.
         </p>
 
         {running && (

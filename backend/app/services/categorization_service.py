@@ -87,11 +87,16 @@ def _classify(event: Event, participants: list[Participant]) -> dict[str, str]:
     return out
 
 
-def normalize_pending(db: Session, event_id: UUID) -> None:
-    """Fill normalized_strength for un-normalized Other entries. Never raises."""
+def normalize_pending(db: Session, event_id: UUID) -> dict[str, int]:
+    """Fill normalized_strength for un-normalized Other entries. Never raises.
+
+    Returns counts of how many entries were set via AI vs deterministic fallback
+    in this call.
+    """
+    counts = {"ai": 0, "fallback": 0}
     pending = _pending(db, event_id)
     if not pending:
-        return
+        return counts
     event = db.query(Event).filter(Event.id == event_id).first()
 
     mapping: dict[str, str] = {}
@@ -107,7 +112,10 @@ def normalize_pending(db: Session, event_id: UUID) -> None:
         if ai_cat:
             p.normalized_strength = ai_cat
             p.strength_source = "ai"
+            counts["ai"] += 1
         else:
             p.normalized_strength = _slug(p.strength_other or "other")
             p.strength_source = "fallback"
+            counts["fallback"] += 1
     db.commit()
+    return counts
