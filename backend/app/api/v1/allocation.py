@@ -37,6 +37,8 @@ def _build_allocation_out(db: Session, allocation: Allocation) -> AllocationOut:
             "role_balance_score": team.role_balance_score,
             "members": members_out,
         }))
+    # Event-level totals (not just this allocation run) so the counts stay accurate
+    # on every read — list/get re-report the same numbers as the originating allocate.
     ai_n = db.query(Participant).filter(
         Participant.event_id == allocation.event_id,
         Participant.strength_source == "ai",
