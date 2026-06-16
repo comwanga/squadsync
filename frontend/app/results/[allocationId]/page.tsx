@@ -2,8 +2,9 @@ import { fetchAPI } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Star } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { FindMyTeam } from "@/components/results/find-my-team";
 
-interface TeamMember { id: string; name: string; role: string; skill_level: string; }
+interface TeamMember { id: string; name: string; normalized_strength?: string; experience_level: string; }
 interface Team {
   id: string;
   name: string;
@@ -39,6 +40,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ alloca
           <Logo className="h-9 w-auto mx-auto" />
           <p className="text-muted-foreground text-sm mt-1">Team Allocation Results</p>
         </div>
+        <FindMyTeam allocationId={allocationId} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {result.teams.map(team => (
             <Card key={team.id}>
@@ -58,7 +60,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ alloca
                   {team.members.map(m => (
                     <li key={m.id} className="flex justify-between text-sm">
                       <span className="font-medium">{m.name}</span>
-                      <span className="text-muted-foreground capitalize text-xs">{m.role}</span>
+                      <span className="text-muted-foreground capitalize text-xs">{(m.normalized_strength ?? "").replaceAll("_", " ")}</span>
                     </li>
                   ))}
                 </ul>
