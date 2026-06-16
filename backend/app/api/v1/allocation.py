@@ -20,7 +20,13 @@ router = APIRouter()
 
 def _delete_draft_allocations(db: Session, event_id: UUID) -> None:
     """Remove the event's unpublished draft allocations (+ their teams/members)
-    so 'Regenerate' replaces the draft rather than piling up. Published ones stay."""
+    so 'Regenerate' replaces the draft rather than piling up. Published ones stay.
+
+    Only flushes (does not commit): the caller runs run_allocation in the same
+    transaction so the delete + the new allocation commit atomically — if
+    run_allocation raises (e.g. no participants), the old draft is rolled back
+    intact rather than left deleted with no replacement.
+    """
     draft_ids = [
         a.id for a in db.query(Allocation).filter(
             Allocation.event_id == event_id, Allocation.status == "draft"
@@ -33,7 +39,7 @@ def _delete_draft_allocations(db: Session, event_id: UUID) -> None:
         db.query(TeamMember).filter(TeamMember.team_id.in_(team_ids)).delete(synchronize_session=False)
     db.query(Team).filter(Team.allocation_id.in_(draft_ids)).delete(synchronize_session=False)
     db.query(Allocation).filter(Allocation.id.in_(draft_ids)).delete(synchronize_session=False)
-    db.commit()
+    db.flush()
 
 
 def _build_allocation_out(db: Session, allocation: Allocation) -> AllocationOut:
