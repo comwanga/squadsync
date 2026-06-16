@@ -20,7 +20,7 @@ export function EventsView({ title, subtitle }: { title: string; subtitle: strin
           <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setArchived(a => !a)}>
+          <Button variant="outline" size="sm" aria-pressed={archived} onClick={() => setArchived(a => !a)}>
             {archived ? "Active events" : "Show archived"}
           </Button>
           {!archived && <QuickGuideButton />}
