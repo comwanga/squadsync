@@ -120,7 +120,7 @@ Key variables at a glance:
 ## Testing
 
 ```bash
-# Backend — runs against an in-memory SQLite database, no Postgres needed
+# Backend — runs against a local SQLite database, no Postgres needed
 cd backend
 python -m pytest
 
