@@ -1,5 +1,15 @@
 from collections import Counter
-from app.services.allocation_engine import score_teams
+from app.services.allocation_engine import score_teams, _tiebreak
+
+
+def test_tiebreak_seed_zero_is_plain_id():
+    assert _tiebreak("abc", 0) == "abc"
+
+
+def test_tiebreak_nonzero_seed_actually_varies():
+    # Guards against a regression where the seed is ignored.
+    assert _tiebreak("abc", 7) != "abc"
+    assert _tiebreak("abc", 7) != _tiebreak("abc", 8)
 
 
 def test_even_teams_high_skill():
