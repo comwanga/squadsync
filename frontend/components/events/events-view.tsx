@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useEvents } from "@/hooks/use-events";
 import { EventCard } from "@/components/events/event-card";
 import { CreateEventDialog } from "@/components/events/create-event-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { QuickGuideButton } from "@/components/onboarding/quick-guide-button";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function EventsView({ title, subtitle }: { title: string; subtitle: string }) {
-  const { events, isLoading, error } = useEvents();
+  const [archived, setArchived] = useState(false);
+  const { events, isLoading, error } = useEvents(archived);
 
   return (
     <div className="space-y-6">
@@ -17,8 +20,11 @@ export function EventsView({ title, subtitle }: { title: string; subtitle: strin
           <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          <QuickGuideButton />
-          <CreateEventDialog />
+          <Button variant="outline" size="sm" onClick={() => setArchived(a => !a)}>
+            {archived ? "Active events" : "Show archived"}
+          </Button>
+          {!archived && <QuickGuideButton />}
+          {!archived && <CreateEventDialog />}
         </div>
       </div>
 
@@ -35,8 +41,8 @@ export function EventsView({ title, subtitle }: { title: string; subtitle: strin
         </div>
       ) : events.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
-          <p className="text-lg font-medium">No events yet</p>
-          <p className="text-sm mt-1">Create your first event to get started</p>
+          <p className="text-lg font-medium">{archived ? "No archived events" : "No events yet"}</p>
+          <p className="text-sm mt-1">{archived ? "Archived events will appear here." : "Create your first event to get started"}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
