@@ -92,9 +92,11 @@ export default function EventPage({ params }: { params: Promise<{ eventId: strin
               {activating ? "Opening…" : "Open Registration"}
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={handleArchive} disabled={busy}>
-            <Archive className="mr-1 h-4 w-4" /> Archive
-          </Button>
+          {event.status !== "archived" && (
+            <Button size="sm" variant="outline" onClick={handleArchive} disabled={busy}>
+              <Archive className="mr-1 h-4 w-4" /> Archive
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => setConfirmDelete(true)} disabled={busy}>
             <Trash2 className="mr-1 h-4 w-4" /> Delete
           </Button>
