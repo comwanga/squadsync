@@ -20,6 +20,7 @@ interface ResultsGridProps {
 export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: ResultsGridProps) {
   const { data: session } = useSession();
   const [publishing, setPublishing] = useState(false);
+  const [working, setWorking] = useState(false);  // a move or regenerate is in flight
   const warningEntries = Object.entries(allocation.constraint_warnings);
   const note = normalizationNote(allocation.ai_normalized, allocation.auto_normalized);
   const isDraft = allocation.status === "draft";
@@ -39,24 +40,30 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
   };
 
   const handleMove = async (participantId: string, teamId: string) => {
-    if (!session?.accessToken) return;
+    if (!session?.accessToken || working) return;
+    setWorking(true);
     try {
       const updated = await moveMember(session.accessToken, allocation.id, participantId, teamId);
       onChanged(updated);
       toast.success("Moved");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Move failed");
+    } finally {
+      setWorking(false);
     }
   };
 
   const handleRegenerate = async () => {
-    if (!session?.accessToken) return;
+    if (!session?.accessToken || working) return;
+    setWorking(true);
     try {
       const a = await regenerateAllocation(session.accessToken, eventId);
       onChanged(a);
       toast.success("Regenerated");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Regenerate failed");
+    } finally {
+      setWorking(false);
     }
   };
 
@@ -118,18 +125,19 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
             team={team}
             otherTeams={isDraft ? allocation.teams.filter(t => t.id !== team.id).map(t => ({ id: t.id, name: t.name })) : undefined}
             onMove={isDraft ? handleMove : undefined}
+            moving={working}
           />
         ))}
       </div>
 
       <div className="flex flex-wrap gap-2 pt-2">
         {isDraft && (
-          <Button variant="outline" onClick={handleRegenerate}>
-            <RefreshCw className="mr-2 h-4 w-4" /> Regenerate
+          <Button variant="outline" onClick={handleRegenerate} disabled={working}>
+            <RefreshCw className="mr-2 h-4 w-4" /> {working ? "Working…" : "Regenerate"}
           </Button>
         )}
-        {allocation.status === "draft" && (
-          <Button onClick={handlePublish} disabled={publishing}>
+        {isDraft && (
+          <Button onClick={handlePublish} disabled={publishing || working}>
             <CheckCircle2 className="mr-2 h-4 w-4" />
             {publishing ? "Publishing…" : "Publish Teams"}
           </Button>

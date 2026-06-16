@@ -16,10 +16,12 @@ export function TeamCard({
   team,
   otherTeams,
   onMove,
+  moving,
 }: {
   team: Team;
   otherTeams?: { id: string; name: string }[];
   onMove?: (participantId: string, teamId: string) => void;
+  moving?: boolean;
 }) {
   const strengthCounts = team.members.reduce<Record<string, number>>((acc, m) => {
     const key = m.normalized_strength ?? "other";
@@ -86,9 +88,10 @@ export function TeamCard({
                   {onMove && otherTeams && otherTeams.length > 0 && (
                     <select
                       aria-label={`Move ${m.name} to another team`}
-                      defaultValue=""
+                      value=""
+                      disabled={moving}
                       onChange={e => { if (e.target.value) onMove(m.id, e.target.value); }}
-                      className="text-xs rounded border border-input bg-background px-1 py-0.5"
+                      className="text-xs rounded border border-input bg-background px-1 py-0.5 disabled:opacity-50"
                     >
                       <option value="" disabled>Move…</option>
                       {otherTeams.map(t => <option key={t.id} value={t.id}>→ {t.name}</option>)}
