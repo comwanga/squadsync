@@ -17,7 +17,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     with op.batch_alter_table("events") as b:
-        b.add_column(sa.Column("event_at", sa.DateTime(), nullable=True))
+        # Intentionally timezone-naive (wall-clock event time) — see design spec.
+        b.add_column(sa.Column("event_at", sa.DateTime(timezone=False), nullable=True))
 
 
 def downgrade() -> None:
