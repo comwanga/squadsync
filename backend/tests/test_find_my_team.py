@@ -20,9 +20,21 @@ def test_find_team_returns_my_team(client, auth_headers):
 
 
 def test_find_team_case_insensitive(client, auth_headers):
-    _, a = _published(client, auth_headers)
-    res = client.post(f"/api/v1/public/allocations/{a['id']}/find-team", json={"email": "P0@T.COM"})
+    # Register with a MIXED-CASE local part so the lookup genuinely exercises the
+    # SQL func.lower() path (a plain `==` would fail this).
+    e = client.post("/api/v1/events", headers=auth_headers, json={"title": "CI", "team_count": 2}).json()
+    client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
+    for name, email, s in [
+        ("Alice", "Alice.Smith@t.com", "technical"),
+        ("Bob", "bob@t.com", "design"),
+    ]:
+        client.post(f"/api/v1/events/{e['registration_slug']}/register", json={
+            "name": name, "email": email, "primary_strength": s, "experience_level": "intermediate"})
+    a = client.post(f"/api/v1/events/{e['id']}/allocate", headers=auth_headers).json()
+    client.post(f"/api/v1/events/{e['id']}/allocations/{a['id']}/publish", headers=auth_headers)
+    res = client.post(f"/api/v1/public/allocations/{a['id']}/find-team", json={"email": "alice.smith@t.com"})
     assert res.status_code == 200
+    assert any(m["name"] == "Alice" for m in res.json()["members"])
 
 
 def test_find_team_unknown_email_404(client, auth_headers):

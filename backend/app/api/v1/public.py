@@ -13,6 +13,19 @@ from app.schemas.allocation import FindTeamRequest, PublicAllocationOut, PublicT
 router = APIRouter()
 
 
+def _get_published_allocation(db: Session, allocation_id: UUID) -> Allocation:
+    """Return a *published* allocation or raise an opaque 404.
+
+    All public negative cases (unknown allocation, draft, or — in find-team — an
+    unmatched email) share this single message so the endpoint never reveals whether
+    an allocation exists or is published.
+    """
+    allocation = db.query(Allocation).filter(Allocation.id == allocation_id).first()
+    if not allocation or allocation.status != "published":
+        raise HTTPException(status_code=404, detail="Results not found")
+    return allocation
+
+
 @router.get("/allocations/{allocation_id}", response_model=PublicAllocationOut)
 def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
     """Unauthenticated read of a *published* allocation for participant share links.
@@ -20,9 +33,7 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
     Returns 404 for unknown or unpublished allocations so draft results never leak.
     Email and other contact PII are intentionally omitted from the response.
     """
-    allocation = db.query(Allocation).filter(Allocation.id == allocation_id).first()
-    if not allocation or allocation.status != "published":
-        raise HTTPException(status_code=404, detail="Results not found")
+    allocation = _get_published_allocation(db, allocation_id)
 
     teams_orm = db.query(Team).filter(Team.allocation_id == allocation.id).all()
     teams = []
@@ -46,12 +57,10 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
 def find_my_team(allocation_id: UUID, req: FindTeamRequest, db: Session = Depends(get_db)):
     """Public lookup: which team is this registered email on? Published-only.
 
-    Returns the matching team (names only, no PII). 404 for unpublished allocations
-    or emails not registered on the event.
+    Returns the matching team (names only, no PII). 404 (opaque "Results not found")
+    for unpublished allocations or emails not registered on the event.
     """
-    allocation = db.query(Allocation).filter(Allocation.id == allocation_id).first()
-    if not allocation or allocation.status != "published":
-        raise HTTPException(status_code=404, detail="Results not found")
+    allocation = _get_published_allocation(db, allocation_id)
 
     participant = (
         db.query(Participant)
@@ -70,7 +79,9 @@ def find_my_team(allocation_id: UUID, req: FindTeamRequest, db: Session = Depend
             .first()
         )
     if not team:
-        raise HTTPException(status_code=404, detail="Not found on this event")
+        # Same opaque message as the published-check, so a probe can't distinguish
+        # "published but email unknown" from "draft / no such allocation".
+        raise HTTPException(status_code=404, detail="Results not found")
 
     members = (
         db.query(Participant)
