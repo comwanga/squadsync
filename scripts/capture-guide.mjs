@@ -123,9 +123,12 @@ async function main() {
   await page.waitForSelector('button:has-text("Export CSV")', { timeout: 20000 });
   await shot(page, "08-published");
 
-  // 09 attendees after allocation — shows categorized "Other" + Source badge
+  // 09 attendees after allocation — shows categorized "Other" + Source badge.
+  // Wait for SWR-loaded participant rows (not just the QR card) so the table is
+  // populated before the screenshot.
   await page.goto(`${BASE}/dashboard/events/${eventId}/attendees`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector("text=Registration QR Code", { timeout: 45000 });
+  await page.waitForSelector("text=Carol", { timeout: 45000 });
+  await page.waitForSelector("text=Auto", { timeout: 45000 });  // the fallback Source badge
   await shot(page, "09-ai-category");
 
   await browser.close();
