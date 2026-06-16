@@ -123,6 +123,11 @@ async function main() {
   await page.waitForSelector('button:has-text("Export CSV")', { timeout: 20000 });
   await shot(page, "08-published");
 
+  // 09 attendees after allocation — shows categorized "Other" + Source badge
+  await page.goto(`${BASE}/dashboard/events/${eventId}/attendees`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("text=Registration QR Code", { timeout: 45000 });
+  await shot(page, "09-ai-category");
+
   await browser.close();
   console.log("\n✅ Guide screenshots captured to frontend/public/guide/\n");
 }

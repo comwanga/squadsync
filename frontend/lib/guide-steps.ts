@@ -55,4 +55,10 @@ export const GUIDE_STEPS: GuideStep[] = [
     caption: "Publish to announce teams, then export CSV/PDF or share the public results link.",
     image: "/guide/08-published.png",
   },
+  {
+    id: "ai-categorize",
+    title: "9. Behind the scenes: SquadSync sorts free-text answers",
+    caption: `When someone picks “Other” and types their own strength, SquadSync categorizes it automatically before forming teams — by AI when an API key is set, deterministically otherwise. The Attendees table shows each person’s category and its source (AI / Auto / Manual), and you can override any of them.`,
+    image: "/guide/09-ai-category.png",
+  },
 ];
