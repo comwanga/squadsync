@@ -53,6 +53,47 @@ def score_teams(team_score_sums, team_strength_counts, role_constraints):
     return skill_score, role_balance_score, fairness_score
 
 
+def move_participant(db: Session, allocation: Allocation, participant_id: UUID, target_team_id: UUID) -> None:
+    """Reassign a participant to another team within a draft allocation, then
+    recompute the allocation's team scores. Raises 404 on bad team/participant."""
+    teams = db.query(Team).filter(Team.allocation_id == allocation.id).all()
+    team_ids = {t.id for t in teams}
+    if target_team_id not in team_ids:
+        raise AllocationError(status_code=404, detail="Target team not in this allocation")
+
+    tm = (
+        db.query(TeamMember)
+        .filter(TeamMember.participant_id == participant_id, TeamMember.team_id.in_(team_ids))
+        .first()
+    )
+    if tm is None:
+        raise AllocationError(status_code=404, detail="Participant not in this allocation")
+
+    tm.team_id = target_team_id
+    db.flush()
+
+    config = db.query(AllocationConfig).filter(AllocationConfig.event_id == allocation.event_id).first()
+    role_constraints = (config.role_constraints if config else {}) or {}
+    team_score_sums, team_strength_counts = [], []
+    for team in teams:
+        members = (
+            db.query(Participant)
+            .join(TeamMember, Participant.id == TeamMember.participant_id)
+            .filter(TeamMember.team_id == team.id)
+            .all()
+        )
+        team_score_sums.append(sum(m.composite_score or 0.0 for m in members))
+        team_strength_counts.append(Counter((m.normalized_strength or m.primary_strength) for m in members))
+    skill_score, role_balance_score, fairness_score = score_teams(
+        team_score_sums, team_strength_counts, role_constraints
+    )
+    for team in teams:
+        team.skill_score = round(skill_score, 1)
+        team.role_balance_score = round(role_balance_score, 1)
+        team.fairness_score = round(fairness_score, 1)
+    db.commit()
+
+
 def _tiebreak(participant_id, seed: int) -> str:
     """Stable tiebreak key. seed=0 preserves insertion-independent id ordering;
     a non-zero seed reshuffles ties to produce a different valid allocation."""

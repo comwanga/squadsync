@@ -8,10 +8,10 @@ from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.models.event import Event
 from app.models.allocation import AllocationConfig, Allocation
-from app.schemas.allocation import AllocationConfigIn, AllocationConfigOut, AllocationOut, TeamOut, TeamMemberOut
-from app.services.allocation_engine import run_allocation
+from app.schemas.allocation import AllocationConfigIn, AllocationConfigOut, AllocationOut, TeamOut, TeamMemberOut, MemberMove
+from app.services.allocation_engine import run_allocation, move_participant
 from app.services.categorization_service import normalize_pending
-from app.services.event_service import _assert_organizer
+from app.services.event_service import _assert_organizer, assert_allocation_organizer
 from app.models.team import Team, TeamMember
 from app.models.participant import Participant
 
@@ -180,3 +180,18 @@ def publish_allocation(
         event.status = "allocated"
     db.commit()
     return {"detail": "published"}
+
+
+@router.patch("/{allocation_id}/members/{participant_id}", response_model=AllocationOut)
+def move_member(
+    allocation_id: UUID,
+    participant_id: UUID,
+    req: MemberMove,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    allocation = assert_allocation_organizer(db, allocation_id, current_user.id)
+    if allocation.status != "draft":
+        raise HTTPException(status_code=409, detail="Allocation is published; teams are locked")
+    move_participant(db, allocation, participant_id, req.team_id)
+    return _build_allocation_out(db, allocation)
