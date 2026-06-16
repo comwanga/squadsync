@@ -78,12 +78,21 @@ def update_event(db: Session, event_id: UUID, user_id: UUID, req: EventUpdate) -
 
 
 def delete_event(db: Session, event_id: UUID, user_id: UUID) -> EventOut:
-    """Permanently delete an event and all of its child rows (hard delete)."""
+    """Permanently delete an event and all of its child rows (hard delete).
+
+    Owner-only: this is irreversible, so co-organizers may archive (PATCH status)
+    but not permanently destroy an event they don't own.
+
+    NOTE: keep the cascade below in sync with every table that has an event_id (or
+    transitive) FK. New child tables must be added here or their rows will orphan.
+    """
     from app.models.allocation import Allocation, AllocationConfig
     from app.models.team import Team, TeamMember
     from app.models.participant import Participant
 
     event = _assert_organizer(db, event_id, user_id)
+    if str(event.owner_id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Only the owner can delete an event")
     snapshot = EventOut.model_validate(event)  # capture before deletion
 
     alloc_ids = [a.id for a in db.query(Allocation).filter(Allocation.event_id == event_id).all()]

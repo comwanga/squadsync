@@ -57,3 +57,19 @@ def test_delete_hard_removes_event_and_children(client, auth_headers, db):
 def test_delete_requires_organizer(client, auth_headers, other_headers):
     e = _active_event(client, auth_headers)
     assert client.delete(f"/api/v1/events/{e['id']}", headers=other_headers).status_code == 403
+
+
+def test_co_organizer_cannot_delete(client, auth_headers):
+    # A co-organizer may archive but NOT permanently delete an event they don't own.
+    pk = PrivateKey()
+    co_pubkey = pk.public_key.format(compressed=True)[1:].hex()
+    res = client.post("/auth/nostr", json={"pubkey": co_pubkey, "event": make_nostr_event(pk)})
+    co_headers = {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+    e = client.post("/api/v1/events", headers=auth_headers, json={"title": "Co", "team_count": 2}).json()
+    client.post(f"/api/v1/events/{e['id']}/co-organizers", headers=auth_headers, json={"pubkey": co_pubkey})
+
+    # Co IS an organizer (can read it) ...
+    assert client.get(f"/api/v1/events/{e['id']}", headers=co_headers).status_code == 200
+    # ... but cannot hard-delete it.
+    assert client.delete(f"/api/v1/events/{e['id']}", headers=co_headers).status_code == 403
