@@ -12,7 +12,15 @@ const strengthColor: Record<string, string> = {
   domain_expert: "bg-teal-100 text-teal-800",
 };
 
-export function TeamCard({ team }: { team: Team }) {
+export function TeamCard({
+  team,
+  otherTeams,
+  onMove,
+}: {
+  team: Team;
+  otherTeams?: { id: string; name: string }[];
+  onMove?: (participantId: string, teamId: string) => void;
+}) {
   const strengthCounts = team.members.reduce<Record<string, number>>((acc, m) => {
     const key = m.normalized_strength ?? "other";
     acc[key] = (acc[key] ?? 0) + 1;
@@ -69,10 +77,23 @@ export function TeamCard({ team }: { team: Team }) {
           <summary className="cursor-pointer text-muted-foreground hover:text-foreground">View members</summary>
           <ul className="mt-2 space-y-1">
             {team.members.map(m => (
-              <li key={m.id} className="flex justify-between">
+              <li key={m.id} className="flex items-center justify-between gap-2">
                 <span className="font-medium">{m.name}</span>
-                <span className="text-muted-foreground capitalize">
-                  {(m.normalized_strength ?? "—").replaceAll("_", " ")} · {m.experience_level}
+                <span className="flex items-center gap-2">
+                  <span className="text-muted-foreground capitalize">
+                    {(m.normalized_strength ?? "—").replaceAll("_", " ")} · {m.experience_level}
+                  </span>
+                  {onMove && otherTeams && otherTeams.length > 0 && (
+                    <select
+                      aria-label={`Move ${m.name} to another team`}
+                      defaultValue=""
+                      onChange={e => { if (e.target.value) onMove(m.id, e.target.value); }}
+                      className="text-xs rounded border border-input bg-background px-1 py-0.5"
+                    >
+                      <option value="" disabled>Move…</option>
+                      {otherTeams.map(t => <option key={t.id} value={t.id}>→ {t.name}</option>)}
+                    </select>
+                  )}
                 </span>
               </li>
             ))}

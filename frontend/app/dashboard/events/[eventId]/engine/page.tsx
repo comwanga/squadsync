@@ -57,6 +57,7 @@ export default function EnginePage({ params }: { params: Promise<{ eventId: stri
           allocation={allocation}
           eventId={eventId}
           onPublished={handlePublished}
+          onChanged={handleComplete}
         />
       )}
     </div>
