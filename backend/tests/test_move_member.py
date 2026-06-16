@@ -52,3 +52,13 @@ def test_move_requires_organizer(client, auth_headers, other_headers):
     res = client.patch(f"/api/v1/allocations/{a['id']}/members/{pid}",
                        headers=other_headers, json={"team_id": a["teams"][1]["id"]})
     assert res.status_code == 403
+
+
+def test_move_to_foreign_team_404(client, auth_headers):
+    _, a1 = _alloc(client, auth_headers)
+    _, a2 = _alloc(client, auth_headers)   # a different allocation/event
+    pid = a1["teams"][0]["members"][0]["id"]
+    foreign_team = a2["teams"][0]["id"]
+    res = client.patch(f"/api/v1/allocations/{a1['id']}/members/{pid}",
+                       headers=auth_headers, json={"team_id": foreign_team})
+    assert res.status_code == 404
