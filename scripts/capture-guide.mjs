@@ -1,4 +1,4 @@
-// Captures the 8 guide screenshots into frontend/public/guide/.
+// Captures the 9 guide screenshots into frontend/public/guide/.
 // Prereqs (run in separate terminals from repo root):
 //   1) backend:  cd backend && DATABASE_URL="sqlite:///./guide.db" SECRET_KEY=guide \
 //                python -m alembic upgrade head && \
@@ -127,8 +127,11 @@ async function main() {
   // Wait for SWR-loaded participant rows (not just the QR card) so the table is
   // populated before the screenshot.
   await page.goto(`${BASE}/dashboard/events/${eventId}/attendees`, { waitUntil: "domcontentloaded" });
+  // Wait for the actual participant rows (SWR-loaded). "Carol" is the Other entry;
+  // the footer count confirms the full table painted. Both are key-agnostic (the
+  // Source badge reads "AI" with a key, "Auto" without — so don't wait on either).
   await page.waitForSelector("text=Carol", { timeout: 45000 });
-  await page.waitForSelector("text=Auto", { timeout: 45000 });  // the fallback Source badge
+  await page.waitForSelector("text=6 participants", { timeout: 45000 });
   await shot(page, "09-ai-category");
 
   await browser.close();
