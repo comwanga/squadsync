@@ -77,7 +77,7 @@ export default function EventPage({ params }: { params: Promise<{ eventId: strin
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{event.title}</h1>
           {event.description && <p className="text-muted-foreground text-sm mt-1">{event.description}</p>}
@@ -85,7 +85,7 @@ export default function EventPage({ params }: { params: Promise<{ eventId: strin
             <Calendar className="h-3.5 w-3.5" /> {formatEventDate(event.event_at)}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Badge className="capitalize">{event.status}</Badge>
           {event.status === "draft" && (
             <Button size="sm" onClick={handleActivate} disabled={activating}>

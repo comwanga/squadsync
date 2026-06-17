@@ -14,12 +14,12 @@ export function EventsView({ title, subtitle }: { title: string; subtitle: strin
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
           <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" aria-pressed={archived} onClick={() => setArchived(a => !a)}>
             {archived ? "Active events" : "Show archived"}
           </Button>

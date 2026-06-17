@@ -34,7 +34,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ alloca
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center">
           <Logo className="h-9 w-auto mx-auto" />
