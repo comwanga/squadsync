@@ -30,13 +30,16 @@ page is the lone exception, with an ad-hoc `← Back to Settings` link.
 ## Components
 
 ### 1. `components/layout/breadcrumb.tsx` (new) — generic, presentational
-- Props: `items: { label: string; href?: string }[]`.
-- Renders `<nav aria-label="Breadcrumb">` containing an ordered list. Items with an `href`
-  render as Next `<Link>`s (`text-muted-foreground hover:text-foreground`); the **last** item
-  renders as plain text with `aria-current="page"` (muted, not a link) regardless of whether it
-  has an `href`.
-- Segments separated by a `ChevronRight` icon (lucide). Container is
-  `flex flex-wrap items-center gap-1 text-sm` so it wraps and never overflows on small screens.
+- Props: `items: { label: React.ReactNode; href?: string }[]` (label is `ReactNode` so a
+  caller can pass a skeleton element, not just a string).
+- Renders semantic breadcrumb markup: `<nav aria-label="Breadcrumb"><ol>…</ol></nav>` with one
+  `<li>` per segment. Items with an `href` render as Next `<Link>`s
+  (`text-muted-foreground hover:text-foreground`); the **last** item renders as plain text with
+  `aria-current="page"` (muted, not a link) regardless of whether it has an `href`.
+- Segments separated by a `ChevronRight` icon (lucide), `aria-hidden`, inside the `<ol>` between
+  items. The `<ol>` is `flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm` — `flex-wrap` so it
+  never overflows on narrow screens, and an explicit **`gap-y-1`** so wrapped lines don't collide
+  vertically.
 - Pure/presentational — no data fetching. Independently testable.
 
 ### 2. `components/layout/event-breadcrumb.tsx` (new) — client wrapper
@@ -49,7 +52,12 @@ page is the lone exception, with an ad-hoc `← Back to Settings` link.
   - If `current` is provided, appends `{ label: current }` as the leaf (the event segment stays
     a link). If `current` is omitted, the event segment is the leaf (used on the event-detail
     page itself) — rendered without an `href` so it becomes the `aria-current` leaf.
-- Title fallback while loading or if the event is missing: the literal string `"Event"`.
+- **Event-title rendering (avoid the SWR flash / layout shift):**
+  - While `useEvent` is loading (`isLoading` true and no cached event), the event segment's
+    `label` is a **skeleton element** — `<span class="inline-block animate-pulse bg-muted rounded h-4 w-24 align-middle" />`
+    — not text, so swapping in the real title doesn't jump the layout.
+  - If loading finished but no event was found, fall back to the literal string `"Event"`.
+  - Otherwise use `event.title`.
 
 ### 3. Page integrations (one line each, at the top of the page content)
 - `app/dashboard/events/[eventId]/page.tsx` → `<EventBreadcrumb eventId={eventId} />`
