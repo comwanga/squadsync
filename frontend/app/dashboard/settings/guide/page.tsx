@@ -1,15 +1,12 @@
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { GUIDE_STEPS } from "@/lib/guide-steps";
+import { Breadcrumb } from "@/components/layout/breadcrumb";
 
 export default function GuidePage() {
   return (
     <div className="space-y-8 max-w-3xl">
       <div>
-        <Link href="/dashboard/settings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to Settings
-        </Link>
+        <Breadcrumb items={[{ label: "Settings", href: "/dashboard/settings" }, { label: "Guide" }]} />
         <h1 className="text-2xl font-bold tracking-tight mt-2">How SquadSync works</h1>
         <p className="text-sm text-muted-foreground mt-1">A quick walkthrough from sign-in to published teams.</p>
       </div>

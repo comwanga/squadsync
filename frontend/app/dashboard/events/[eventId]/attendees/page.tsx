@@ -5,6 +5,7 @@ import { useEvent } from "@/hooks/use-events";
 import { AttendeesTable } from "@/components/attendees/attendees-table";
 import { QRDisplay } from "@/components/attendees/qr-display";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
 
 export default function AttendeesPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -12,6 +13,7 @@ export default function AttendeesPage({ params }: { params: Promise<{ eventId: s
 
   return (
     <div className="space-y-6">
+      <EventBreadcrumb eventId={eventId} title={event?.title} current="Attendees" />
       <div>
         <h1 className="text-xl font-bold">Attendees</h1>
         <p className="text-sm text-muted-foreground">Manage participants and share the registration QR code</p>
