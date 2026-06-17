@@ -87,3 +87,51 @@ def test_build_signed_event_has_valid_id_and_sig():
     assert PublicKeyXOnly(bot.public_key_xonly.format()).verify(
         bytes.fromhex(event["sig"]), bytes.fromhex(event["id"])
     )
+
+
+def test_send_dm_noop_when_unconfigured(monkeypatch):
+    monkeypatch.setattr(nostr_service.settings, "SQUADSYNC_NSEC", None, raising=False)
+    # Must return False and NOT raise, even with a bad recipient.
+    assert nostr_service.send_dm("npub-not-real", "hi") is False
+
+
+def test_send_dm_returns_true_when_a_relay_accepts(monkeypatch):
+    # Configure a valid bot key (the NIP-19 nsec test vector).
+    monkeypatch.setattr(
+        nostr_service.settings,
+        "SQUADSYNC_NSEC",
+        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9",
+        raising=False,
+    )
+    monkeypatch.setattr(nostr_service.settings, "NOSTR_RELAYS", "wss://relay.test", raising=False)
+
+    published = {}
+
+    def fake_publish(event, relays):
+        published["event"] = event
+        published["relays"] = relays
+        return True
+
+    monkeypatch.setattr(nostr_service, "_publish_to_relays", fake_publish)
+
+    recipient = "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
+    assert nostr_service.send_dm(recipient, "hello") is True
+    assert published["event"]["kind"] == 4
+    assert published["relays"] == ["wss://relay.test"]
+
+
+def test_send_dm_swallows_publish_errors(monkeypatch):
+    monkeypatch.setattr(
+        nostr_service.settings,
+        "SQUADSYNC_NSEC",
+        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9",
+        raising=False,
+    )
+
+    def boom(event, relays):
+        raise RuntimeError("relay down")
+
+    monkeypatch.setattr(nostr_service, "_publish_to_relays", boom)
+    recipient = "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
+    # Never propagates — returns False.
+    assert nostr_service.send_dm(recipient, "hello") is False

@@ -15,6 +15,8 @@ from coincurve import PrivateKey, PublicKey
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 _BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
@@ -108,3 +110,44 @@ def build_dm_event(privkey_bytes: bytes, recipient_xonly: bytes, message: str) -
         "content": content,
         "sig": sig,
     }
+
+
+def _publish_to_relays(event: dict, relays: list[str]) -> bool:
+    """Open a short-lived websocket to each relay, send the EVENT, read one OK.
+
+    Returns True if at least one relay accepted. Per-relay errors are swallowed.
+    Imported lazily so the rest of the module has no hard websockets dependency
+    at import time (and tests monkeypatch this function).
+    """
+    from websockets.sync.client import connect
+
+    payload = json.dumps(["EVENT", event])
+    accepted = False
+    for relay in relays:
+        try:
+            with connect(relay, open_timeout=5, close_timeout=5) as ws:
+                ws.send(payload)
+                ws.recv(timeout=5)  # best-effort: drain one frame (OK/NOTICE)
+                accepted = True
+        except Exception as exc:  # noqa: BLE001 — best-effort, never propagate
+            logger.warning("Nostr relay %s rejected/failed: %s", relay, exc)
+    return accepted
+
+
+def send_dm(recipient_npub: str, message: str) -> bool:
+    """Best-effort NIP-04 DM from the bot key to `recipient_npub`.
+
+    No-ops (returns False) when `SQUADSYNC_NSEC` is unset. Never raises — all
+    failures are logged and swallowed so callers (e.g. BackgroundTasks) are safe.
+    """
+    if not settings.SQUADSYNC_NSEC:
+        logger.info("send_dm skipped: SQUADSYNC_NSEC not configured")
+        return False
+    try:
+        _, privkey_bytes = bech32_decode(settings.SQUADSYNC_NSEC)
+        _, recipient_xonly = bech32_decode(recipient_npub)
+        event = build_dm_event(privkey_bytes, recipient_xonly, message)
+        return _publish_to_relays(event, settings.nostr_relays)
+    except Exception as exc:  # noqa: BLE001 — best-effort, never propagate
+        logger.warning("send_dm failed: %s", exc)
+        return False
