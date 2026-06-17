@@ -129,3 +129,21 @@ def test_send_dm_swallows_publish_errors(monkeypatch):
     recipient = "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
     # Never propagates — returns False.
     assert nostr_service.send_dm(recipient, "hello") is False
+
+
+import pytest
+
+
+def test_validate_npub_accepts_valid():
+    npub = "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
+    assert nostr_service.validate_npub(npub) == npub
+
+
+def test_validate_npub_rejects_nsec():
+    with pytest.raises(ValueError):
+        nostr_service.validate_npub("nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9")
+
+
+def test_validate_npub_rejects_garbage():
+    with pytest.raises(ValueError):
+        nostr_service.validate_npub("not-an-npub")
