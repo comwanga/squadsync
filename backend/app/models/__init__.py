@@ -6,9 +6,10 @@ from app.models.team import Team, TeamMember
 from app.models.used_event import UsedAuthEvent
 from app.models.feedback import Feedback
 from app.models.team_notification import TeamNotification
+from app.models.payout import Payout, PayoutItem
 
 __all__ = [
     "User", "Event", "EventCoOrganizer", "Participant",
     "AllocationConfig", "Allocation", "Team", "TeamMember",
-    "UsedAuthEvent", "Feedback", "TeamNotification",
+    "UsedAuthEvent", "Feedback", "TeamNotification", "Payout", "PayoutItem",
 ]
