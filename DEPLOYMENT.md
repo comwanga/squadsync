@@ -24,13 +24,18 @@ There's a deliberate ordering because the two services reference each other's UR
 
 1. Vercel → **Add New → Project** → import this repo.
 2. **Root Directory: `frontend`** (important — the app isn't at the repo root).
-3. Add environment variables (Production):
+3. Add environment variables. **Set them for _all_ environments (Production **and** Preview)** —
+   each variable's environment checkboxes must include Preview, or branch/preview deployments
+   500 on `/api/auth/session` (Auth.js `MissingSecret`):
 
-   | Key | Value |
-   |---|---|
-   | `NEXT_PUBLIC_API_URL` | `https://squadsync-api.onrender.com` (your API URL — **must equal `PUBLIC_API_URL`**) |
-   | `AUTH_SECRET` | a strong random string — `openssl rand -base64 32` |
-   | `AUTH_URL` | `https://<your-app>.vercel.app` |
+   | Key | Value | Environments |
+   |---|---|---|
+   | `NEXT_PUBLIC_API_URL` | `https://squadsync-api.onrender.com` (your API URL — **must equal `PUBLIC_API_URL`**) | Production + Preview |
+   | `AUTH_SECRET` | a strong random string — `openssl rand -base64 32` | Production + Preview |
+
+   > **Do not set `AUTH_URL`.** The app sets `trustHost: true`, so Auth.js derives the URL from
+   > the request host — this is what lets each Vercel **preview** URL work. A single hardcoded
+   > `AUTH_URL` would break preview deployments (their URLs differ per branch/commit).
 
 4. Deploy. Copy the resulting Vercel URL.
 
@@ -63,11 +68,14 @@ There's a deliberate ordering because the two services reference each other's UR
 
 **Vercel — frontend** (Root Directory `frontend`)
 
+Set both for **Production + Preview** (see §2):
+
 | Key | Notes |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | API URL, must equal `PUBLIC_API_URL`. Build-time inlined. |
-| `AUTH_SECRET` | NextAuth session secret. |
-| `AUTH_URL` | the frontend's own URL. |
+| `AUTH_SECRET` | NextAuth session secret. Required in every environment — if missing on Preview, those deployments 500 on `/api/auth/session`. |
+
+`AUTH_URL` is intentionally **not** set — `trustHost: true` derives it from the request host so preview URLs work.
 
 ---
 
