@@ -1,6 +1,6 @@
 # SquadSync
 
-Balanced team formation for hackathons, workshops, and study groups. Organizers create an event and share a QR/link; attendees self-register; a **deterministic engine** builds balanced teams. Auth is **Nostr (NIP-98)** — no passwords, no email.
+Balanced team formation for hackathons, workshops, and study groups. Organizers create an event and share a QR/link; attendees self-register; a **deterministic engine** builds balanced teams. **AI (Claude) reads each attendee's free-text "Other" strength and maps it to a standard category** so everyone is comparable before allocation — while the team-building itself stays fully deterministic and reproducible. Auth is **Nostr (NIP-98)** — no passwords, no email.
 
 ## What it does
 
