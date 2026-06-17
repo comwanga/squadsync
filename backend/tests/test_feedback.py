@@ -23,7 +23,7 @@ def test_feedback_persists_and_returns_201(client, auth_headers, db, monkeypatch
     assert calls == []  # unconfigured recipient → no DM scheduled
 
 
-def test_feedback_schedules_dm_when_npub_set(client, auth_headers, monkeypatch):
+def test_feedback_schedules_dm_when_npub_set(client, auth_headers, nostr_privkey, monkeypatch):
     calls = []
     monkeypatch.setattr(feedback_api, "send_dm", lambda npub, msg: calls.append((npub, msg)) or True)
     monkeypatch.setattr(
@@ -36,6 +36,9 @@ def test_feedback_schedules_dm_when_npub_set(client, auth_headers, monkeypatch):
     npub, msg = calls[0]
     assert npub == "npub1ownerxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     assert "ping" in msg
+    expected_pubkey = nostr_privkey.public_key.format(compressed=True)[1:].hex()
+    assert expected_pubkey in msg  # raw hex pubkey, NOT npub-encoded
+    assert msg.startswith("SquadSync feedback from ")
 
 
 def test_feedback_rejects_empty_message(client, auth_headers):
