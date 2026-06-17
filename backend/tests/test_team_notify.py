@@ -1,5 +1,6 @@
 from uuid import UUID
 
+import app.api.v1.allocation as alloc_mod
 import app.services.team_notifications as tn
 
 NPUB = "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
@@ -78,9 +79,6 @@ def test_notify_noop_when_nsec_unset(client, auth_headers, session_factory, monk
     assert calls == []
 
 
-import app.api.v1.allocation as alloc_mod
-
-
 def test_publish_schedules_notify_task(client, auth_headers, monkeypatch):
     scheduled = []
     monkeypatch.setattr(alloc_mod, "notify_teams_task", lambda aid: scheduled.append(aid))
@@ -98,4 +96,5 @@ def test_publish_schedules_notify_task(client, auth_headers, monkeypatch):
     assert res.status_code == 200
     # TestClient runs BackgroundTasks after the response; the scheduled task ran.
     assert len(scheduled) == 1
-    assert str(scheduled[0]) == a["id"]
+    # Enforce the contract that a real UUID (not a string) is passed to the task.
+    assert scheduled[0] == UUID(a["id"])

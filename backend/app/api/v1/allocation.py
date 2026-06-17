@@ -180,8 +180,11 @@ def publish_allocation(
     event = db.query(Event).filter(Event.id == event_id).first()
     if event and event.status != "archived":
         event.status = "allocated"
+    # Capture the id before commit: expire_on_commit would otherwise force a lazy
+    # reload when add_task reads allocation.id (and break if the session is closed).
+    allocation_pk = allocation.id
     db.commit()
     # Fire-and-forget: DM each npub-having attendee their team (no-op if Nostr unconfigured).
-    background_tasks.add_task(notify_teams_task, allocation.id)
+    background_tasks.add_task(notify_teams_task, allocation_pk)
     return {"detail": "published"}
 

@@ -73,6 +73,9 @@ def notify_teams_task(allocation_id: UUID) -> None:
                             member.id, allocation.id,
                         )
                         continue
+                    # Record only after a successful send. If the process dies between
+                    # the send and this commit, the row is lost and a re-publish re-sends
+                    # (a rare duplicate DM) — an accepted tradeoff vs. silently dropping it.
                     db.add(TeamNotification(
                         allocation_id=allocation.id,
                         participant_id=member.id,
