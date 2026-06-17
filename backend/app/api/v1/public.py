@@ -8,7 +8,8 @@ from app.core.database import get_db
 from app.models.allocation import Allocation
 from app.models.participant import Participant
 from app.models.team import Team, TeamMember
-from app.schemas.allocation import FindTeamRequest, PublicAllocationOut, PublicTeam, PublicTeamMember
+from app.models.payout import Payout, PayoutItem
+from app.schemas.allocation import FindTeamRequest, PublicAllocationOut, PublicPayoutSummary, PublicTeam, PublicTeamMember
 
 router = APIRouter()
 
@@ -50,7 +51,14 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
             fairness_score=team.fairness_score,
             members=[PublicTeamMember.model_validate(m) for m in members],
         ))
-    return PublicAllocationOut(id=allocation.id, status=allocation.status, teams=teams)
+    payouts = []
+    for p in db.query(Payout).filter(Payout.allocation_id == allocation.id).all():
+        items = db.query(PayoutItem).filter(PayoutItem.payout_id == p.id).all()
+        payouts.append(PublicPayoutSummary(
+            team_label=p.team_label, total_sats=p.total_sats, status=p.status,
+            paid_count=sum(1 for i in items if i.status == "paid"), member_count=len(items),
+        ))
+    return PublicAllocationOut(id=allocation.id, status=allocation.status, teams=teams, payouts=payouts)
 
 
 @router.post("/allocations/{allocation_id}/find-team", response_model=PublicTeam)

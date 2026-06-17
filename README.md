@@ -5,10 +5,11 @@ Balanced team formation for hackathons, workshops, and study groups. Organizers 
 ## What it does
 
 - **Nostr login** — NIP-07 extension, generated keypair, or existing `nsec`.
-- **Events + registration** — create an event, share a QR/link, attendees register with no login.
+- **Events + registration** — create an event, share a QR/link, attendees register with no login. Each attendee may add an optional **Lightning address**, auto-filled from their Nostr profile (`lud16`) when available.
 - **Taxonomy** — each attendee picks a Primary Strength (Technical, Design, Planning, Coordination, Communication, Research, Domain Expert, or Other free-text) and Experience level (Beginner/Intermediate/Advanced).
 - **Allocation** — one click distributes role diversity and experience evenly across teams. The engine is fully deterministic; Claude (Haiku) only normalizes free-text "Other" strengths when `ANTHROPIC_API_KEY` is set (deterministic fallback otherwise).
 - **Results** — public `/results/<id>` link, "find my team" lookup, CSV/PDF export.
+- **Lightning prize payouts** — an organizer marks the winning team, enters a prize in sats, and connects a wallet via **Nostr Wallet Connect (NIP-47)**. SquadSync splits the pot evenly and pays each winner's Lightning address (resolved via LNURL-pay). Members without an address are flagged before anything is sent, so a partial team is never charged; the public results page shows a redacted "prize paid" summary. The NWC credential is used per request and never stored.
 - **Feedback** — Settings feedback box; stored in the DB and optionally DM'd to the owner over Nostr (NIP-04) when a bot key is configured.
 
 ## Tech stack
@@ -19,6 +20,7 @@ Balanced team formation for hackathons, workshops, and study groups. Organizers 
 | Backend | FastAPI, SQLAlchemy 2, Alembic, Pydantic v2 |
 | Database | PostgreSQL (prod), SQLite (tests) |
 | Auth / Nostr | NIP-98 auth, NIP-04 DMs, Schnorr (`coincurve`) |
+| Bitcoin / Lightning | LNURL-pay, Nostr Wallet Connect (NIP-47) prize payouts |
 | AI | Anthropic Claude Haiku (optional, strength normalization only) |
 
 **Deploy:** single `main` branch → backend + Postgres on Render (`render.yaml`), frontend on Vercel (`frontend/`). Full guide in `DEPLOYMENT.md`.

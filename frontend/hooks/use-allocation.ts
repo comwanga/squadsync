@@ -82,3 +82,35 @@ export async function regenerateAllocation(token: string, eventId: string) {
   // The allocate endpoint reseeds and replaces the draft, so this yields a new draft.
   return runAllocation(token, eventId);
 }
+
+export interface PayoutItem {
+  id: string;
+  participant_id: string;
+  lightning_address: string | null;
+  amount_sats: number;
+  status: string;
+  preimage: string | null;
+  error: string | null;
+}
+
+export interface Payout {
+  id: string;
+  event_id: string;
+  allocation_id: string;
+  team_label: string;
+  total_sats: number;
+  status: string;
+  items: PayoutItem[];
+}
+
+export async function createPayout(
+  token: string,
+  allocationId: string,
+  body: { team_id: string; total_sats: number; nwc: string; addresses?: Record<string, string> }
+) {
+  return fetchAPI<Payout>(`/api/v1/allocations/${allocationId}/payouts`, { method: "POST", body, token });
+}
+
+export async function retryPayout(token: string, payoutId: string, nwc: string) {
+  return fetchAPI<Payout>(`/api/v1/allocations/payouts/${payoutId}/retry`, { method: "POST", body: { nwc }, token });
+}

@@ -147,3 +147,16 @@ def test_register_omitted_npub_stored_none(client, auth_headers):
     res = _register(client, e["registration_slug"], email="omit@t.com")
     assert res.status_code == 201
     assert res.json()["npub"] is None
+
+
+def test_register_accepts_lightning_address(client, auth_headers):
+    e = client.post("/api/v1/events", headers=auth_headers,
+                    json={"title": "BTC++ Demo", "team_count": 2}).json()
+    client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
+    res = client.post(f"/api/v1/events/{e['registration_slug']}/register", json={
+        "name": "Ada", "email": "ada@example.com",
+        "primary_strength": "technical", "experience_level": "advanced",
+        "lightning_address": "ada@getalby.com",
+    })
+    assert res.status_code in (200, 201)
+    assert res.json()["lightning_address"] == "ada@getalby.com"

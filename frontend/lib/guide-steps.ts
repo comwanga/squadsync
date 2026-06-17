@@ -56,9 +56,15 @@ export const GUIDE_STEPS: GuideStep[] = [
     image: "/guide/08-published.png",
   },
   {
+    id: "payout",
+    title: "9. Pay out the winning team in Bitcoin",
+    caption: "On a published allocation, choose a winning team and “Pay out”. Enter a prize in sats and connect a wallet via Nostr Wallet Connect (NIP-47) — SquadSync splits the pot evenly and pays each winner over Lightning, showing live per-member status.",
+    image: "/guide/09-payout.png",
+  },
+  {
     id: "ai-categorize",
-    title: "9. Behind the scenes: SquadSync sorts free-text answers",
+    title: "10. Behind the scenes: SquadSync sorts free-text answers",
     caption: `When someone picks “Other” and types their own strength, SquadSync categorizes it automatically before forming teams — by AI when an API key is set, deterministically otherwise. The Attendees table shows each person’s category and its source (AI / Auto / Manual), and you can override any of them.`,
-    image: "/guide/09-ai-category.png",
+    image: "/guide/10-ai-category.png",
   },
 ];

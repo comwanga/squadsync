@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.v1 import auth, events, participants, allocation, teams, export, public, feedback
+from app.api.v1 import auth, events, participants, allocation, teams, export, public, feedback, payouts
 import app.models  # noqa: F401
 
 
@@ -31,6 +31,7 @@ app.include_router(teams.router, prefix="/api/v1/allocations", tags=["teams"])
 app.include_router(export.router, prefix="/api/v1/allocations", tags=["export"])
 app.include_router(public.router, prefix="/api/v1/public", tags=["public"])
 app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["feedback"])
+app.include_router(payouts.router, prefix="/api/v1/allocations", tags=["payouts"])
 
 
 @app.get("/health")

@@ -1,4 +1,4 @@
-// Captures the 9 guide screenshots into frontend/public/guide/.
+// Captures the 10 guide screenshots into frontend/public/guide/.
 // Prereqs (run in separate terminals from repo root):
 //   1) backend:  cd backend && DATABASE_URL="sqlite:///./guide.db" SECRET_KEY=guide \
 //                python -m alembic upgrade head && \
@@ -133,7 +133,16 @@ async function main() {
   await page.waitForSelector('button:has-text("Export CSV")', { timeout: 20000 });
   await shot(page, "08-published");
 
-  // 09 attendees after allocation — shows categorized "Other" + Source badge.
+  // 09 payout modal — on a published team, open "Pay out" to show the even split
+  // preview + Nostr Wallet Connect field. No payment is sent.
+  await page.click('button:has-text("Pay out")');
+  await page.waitForSelector('[role="dialog"]', { timeout: 10000 });
+  await page.waitForSelector('button:has-text("Send payout")', { timeout: 10000 });
+  await page.waitForTimeout(400);
+  await shot(page, "09-payout");
+  await page.keyboard.press("Escape");
+
+  // 10 attendees after allocation — shows categorized "Other" + Source badge.
   // Wait for SWR-loaded participant rows (not just the QR card) so the table is
   // populated before the screenshot.
   await page.goto(`${BASE}/dashboard/events/${eventId}/attendees`, { waitUntil: "domcontentloaded" });
@@ -142,7 +151,7 @@ async function main() {
   // Source badge reads "AI" with a key, "Auto" without — so don't wait on either).
   await page.waitForSelector("text=Carol", { timeout: 45000 });
   await page.waitForSelector("text=6 participants", { timeout: 45000 });
-  await shot(page, "09-ai-category");
+  await shot(page, "10-ai-category");
 
   await browser.close();
   console.log("\n✅ Guide screenshots captured to frontend/public/guide/\n");

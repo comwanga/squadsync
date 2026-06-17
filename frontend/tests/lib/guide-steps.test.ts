@@ -3,7 +3,7 @@ import { GUIDE_STEPS } from "@/lib/guide-steps";
 
 describe("GUIDE_STEPS", () => {
   it("has steps, each with the required fields", () => {
-    expect(GUIDE_STEPS.length).toBe(9);
+    expect(GUIDE_STEPS.length).toBe(10);
     for (const s of GUIDE_STEPS) {
       expect(s.id).toBeTruthy();
       expect(s.title).toBeTruthy();

@@ -32,6 +32,7 @@ class Participant(Base):
     normalized_strength = Column(String, nullable=True)
     strength_source = Column(String, nullable=False, default="preset")
     npub = Column(String, nullable=True)
+    lightning_address = Column(String, nullable=True)
     tech_stack = Column(JSON, nullable=False, default=list)
     interests = Column(JSON, nullable=False, default=list)
     composite_score = Column(Float, nullable=True)

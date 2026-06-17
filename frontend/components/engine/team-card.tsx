@@ -1,4 +1,4 @@
-import { Users, Star } from "lucide-react";
+import { Users, Star, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Team } from "@/hooks/use-allocation";
 
@@ -17,11 +17,13 @@ export function TeamCard({
   otherTeams,
   onMove,
   moving,
+  onPayout,
 }: {
   team: Team;
   otherTeams?: { id: string; name: string }[];
   onMove?: (participantId: string, teamId: string) => void;
   moving?: boolean;
+  onPayout?: () => void;
 }) {
   const strengthCounts = team.members.reduce<Record<string, number>>((acc, m) => {
     const key = m.normalized_strength ?? "other";
@@ -34,9 +36,20 @@ export function TeamCard({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold">{team.name}</CardTitle>
-          <div className="flex items-center gap-1 text-xs text-amber-600 font-medium">
-            <Star className="h-3 w-3 fill-amber-400 stroke-amber-400" />
-            {team.fairness_score?.toFixed(0) ?? "—"}%
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+              <Star className="h-3 w-3 fill-amber-400 stroke-amber-400" />
+              {team.fairness_score?.toFixed(0) ?? "—"}%
+            </div>
+            {onPayout && (
+              <button
+                onClick={onPayout}
+                className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium px-1.5 py-0.5 rounded hover:bg-amber-50 transition-colors"
+              >
+                <Zap className="h-3 w-3" />
+                Pay out
+              </button>
+            )}
           </div>
         </div>
       </CardHeader>

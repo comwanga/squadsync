@@ -73,10 +73,19 @@ class PublicTeam(BaseModel):
     members: list[PublicTeamMember] = []
 
 
+class PublicPayoutSummary(BaseModel):
+    team_label: str
+    total_sats: int
+    status: str
+    paid_count: int
+    member_count: int
+
+
 class PublicAllocationOut(BaseModel):
     id: UUID
     status: str
     teams: list[PublicTeam] = []
+    payouts: list[PublicPayoutSummary] = []
 
 
 class FindTeamRequest(BaseModel):

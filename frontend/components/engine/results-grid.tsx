@@ -5,9 +5,10 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { AlertTriangle, Download, Link2, CheckCircle2, RefreshCw } from "lucide-react";
 import { TeamCard } from "./team-card";
+import { PayoutModal } from "./payout-modal";
 import { publishAllocation, moveMember, regenerateAllocation } from "@/hooks/use-allocation";
 import { Button } from "@/components/ui/button";
-import type { Allocation } from "@/hooks/use-allocation";
+import type { Allocation, Team } from "@/hooks/use-allocation";
 import { normalizationNote } from "@/lib/allocation-notes";
 
 interface ResultsGridProps {
@@ -21,6 +22,7 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
   const { data: session } = useSession();
   const [publishing, setPublishing] = useState(false);
   const [working, setWorking] = useState(false);  // a move or regenerate is in flight
+  const [payoutTeam, setPayoutTeam] = useState<Team | null>(null);
   const warningEntries = Object.entries(allocation.constraint_warnings);
   const note = normalizationNote(allocation.ai_normalized, allocation.auto_normalized);
   const isDraft = allocation.status === "draft";
@@ -126,9 +128,19 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
             otherTeams={isDraft ? allocation.teams.filter(t => t.id !== team.id).map(t => ({ id: t.id, name: t.name })) : undefined}
             onMove={isDraft ? handleMove : undefined}
             moving={working}
+            onPayout={allocation.status === "published" ? () => setPayoutTeam(team) : undefined}
           />
         ))}
       </div>
+
+      {payoutTeam && (
+        <PayoutModal
+          team={payoutTeam}
+          allocationId={allocation.id}
+          open={!!payoutTeam}
+          onOpenChange={(o) => { if (!o) setPayoutTeam(null); }}
+        />
+      )}
 
       <div className="flex flex-wrap gap-2 pt-2">
         {isDraft && (
