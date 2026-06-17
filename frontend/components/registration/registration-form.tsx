@@ -26,6 +26,7 @@ const schema = z.object({
   ]),
   strength_other: z.string().optional(),
   experience_level: z.enum(["beginner", "intermediate", "advanced"]),
+  npub: z.string().optional(),
 }).refine(
   d => d.primary_strength !== "other" || (d.strength_other?.trim().length ?? 0) > 0,
   { message: "Please describe your strength", path: ["strength_other"] },
@@ -91,6 +92,14 @@ export function RegistrationForm({ event, slug }: { event: EventInfo; slug: stri
       <div className="space-y-1">
         <Label htmlFor="phone">Phone (optional)</Label>
         <Input id="phone" type="tel" placeholder="+1 555 000 0000" {...register("phone")} />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="npub">Nostr npub (optional)</Label>
+        <Input id="npub" placeholder="npub1…" {...register("npub")} />
+        <p className="text-xs text-muted-foreground">
+          Paste your Nostr npub to be DM&apos;d your team. Otherwise you can look it up after results are posted.
+        </p>
       </div>
 
       <div className="space-y-1">

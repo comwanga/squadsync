@@ -154,3 +154,15 @@ def send_dm(recipient_npub: str, message: str) -> bool:
     except Exception as exc:  # noqa: BLE001 — best-effort, never propagate
         logger.warning("send_dm failed: %s", exc)
         return False
+
+
+def validate_npub(npub: str) -> str:
+    """Return `npub` unchanged if it is a well-formed bech32 npub, else raise ValueError.
+
+    A valid npub has hrp `npub` and decodes to a 32-byte key. `bech32_decode` already
+    raises ValueError on malformed input (bad chars / no separator).
+    """
+    hrp, key = bech32_decode(npub)
+    if hrp != "npub" or len(key) != 32:
+        raise ValueError("invalid npub")
+    return npub

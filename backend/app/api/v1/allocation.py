@@ -1,7 +1,7 @@
 import random
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
@@ -10,6 +10,7 @@ from app.models.event import Event
 from app.models.allocation import AllocationConfig, Allocation
 from app.schemas.allocation import AllocationConfigIn, AllocationConfigOut, AllocationOut, TeamOut, TeamMemberOut
 from app.services.allocation_engine import run_allocation
+from app.services.team_notifications import notify_teams_task
 from app.services.categorization_service import normalize_pending
 from app.services.event_service import _assert_organizer
 from app.models.team import Team, TeamMember
@@ -164,6 +165,7 @@ def get_allocation(
 def publish_allocation(
     event_id: UUID,
     allocation_id: UUID,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -178,6 +180,11 @@ def publish_allocation(
     event = db.query(Event).filter(Event.id == event_id).first()
     if event and event.status != "archived":
         event.status = "allocated"
+    # Capture the id before commit: expire_on_commit would otherwise force a lazy
+    # reload when add_task reads allocation.id (and break if the session is closed).
+    allocation_pk = allocation.id
     db.commit()
+    # Fire-and-forget: DM each npub-having attendee their team (no-op if Nostr unconfigured).
+    background_tasks.add_task(notify_teams_task, allocation_pk)
     return {"detail": "published"}
 
