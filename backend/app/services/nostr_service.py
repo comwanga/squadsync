@@ -5,8 +5,11 @@ publishes it to relays. `send_dm` never raises and no-ops when unconfigured.
 Personal secret keys must never be stored — `SQUADSYNC_NSEC` is a dedicated bot key.
 """
 import base64
+import hashlib
+import json
 import logging
 import os
+import time
 
 from coincurve import PrivateKey, PublicKey
 from cryptography.hazmat.primitives import padding
@@ -78,3 +81,30 @@ def decrypt_nip04(privkey_bytes: bytes, peer_xonly: bytes, content: str) -> str:
     padded = decryptor.update(ciphertext) + decryptor.finalize()
     unpadder = padding.PKCS7(128).unpadder()
     return (unpadder.update(padded) + unpadder.finalize()).decode("utf-8")
+
+
+def build_dm_event(privkey_bytes: bytes, recipient_xonly: bytes, message: str) -> dict:
+    """Build a signed NIP-04 kind-4 DM event (NIP-01 serialization for the id)."""
+    privkey = PrivateKey(privkey_bytes)
+    pubkey_hex = privkey.public_key_xonly.format().hex()
+    created_at = int(time.time())
+    content = encrypt_nip04(privkey_bytes, recipient_xonly, message)
+    tags = [["p", recipient_xonly.hex()]]
+
+    serialized = json.dumps(
+        [0, pubkey_hex, created_at, 4, tags, content],
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    event_id = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    sig = privkey.sign_schnorr(bytes.fromhex(event_id)).hex()
+
+    return {
+        "id": event_id,
+        "pubkey": pubkey_hex,
+        "created_at": created_at,
+        "kind": 4,
+        "tags": tags,
+        "content": content,
+        "sig": sig,
+    }

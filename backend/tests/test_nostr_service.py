@@ -56,3 +56,34 @@ def test_nip04_encrypt_decrypt_round_trip():
     # Recipient decrypts with their privkey + the bot's x-only pubkey.
     recovered = nostr_service.decrypt_nip04(recipient.secret, bot_xonly, content)
     assert recovered == message
+
+
+import hashlib
+import json
+
+from coincurve import PublicKeyXOnly
+
+
+def test_build_signed_event_has_valid_id_and_sig():
+    bot = PrivateKey()
+    recipient = PrivateKey()
+    recipient_xonly = recipient.public_key_xonly.format()
+
+    event = nostr_service.build_dm_event(bot.secret, recipient_xonly, "hi there")
+
+    assert event["kind"] == 4
+    assert event["tags"] == [["p", recipient_xonly.hex()]]
+    assert event["pubkey"] == bot.public_key_xonly.format().hex()
+
+    # id == sha256 of NIP-01 serialization
+    serialized = json.dumps(
+        [0, event["pubkey"], event["created_at"], event["kind"], event["tags"], event["content"]],
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    assert event["id"] == hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+    # sig verifies against the bot's x-only pubkey over the id bytes
+    assert PublicKeyXOnly(bot.public_key_xonly.format()).verify(
+        bytes.fromhex(event["sig"]), bytes.fromhex(event["id"])
+    )
