@@ -61,3 +61,15 @@ def test_decode_response_error_raises():
     with pytest.raises(NwcError) as exc:
         decode_response(secret.secret, wallet.public_key_xonly.format(), content)
     assert "no funds" in str(exc.value)
+
+
+def test_decode_response_string_error_raises():
+    # Some wallets return `error` as a bare string instead of {code, message}.
+    secret = PrivateKey()
+    wallet = PrivateKey()
+    our_xonly = secret.public_key_xonly.format()
+    payload = json.dumps({"error": "payment failed"})
+    content = encrypt_nip04(wallet.secret, our_xonly, payload)
+    with pytest.raises(NwcError) as exc:
+        decode_response(secret.secret, wallet.public_key_xonly.format(), content)
+    assert "payment failed" in str(exc.value)

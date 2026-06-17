@@ -87,6 +87,10 @@ def execute_payout(
             item.status = "failed"
             item.error = str(exc)
             logger.warning("payout item %s failed: %s", item.id, exc)
+        # Commit per item: a sent payment's preimage must be durable the moment it
+        # lands, so a later crash/commit failure can never lose a record of real money
+        # already moved (which would risk a double-pay on re-run).
+        db.commit()
     payout.status = "complete" if paid == len(splits) else ("partial" if paid else "failed")
     db.commit()
     db.refresh(payout)
@@ -108,6 +112,7 @@ def retry_failed(db: Session, payout: Payout, nwc: str) -> Payout:
         except Exception as exc:  # noqa: BLE001
             item.error = str(exc)
             logger.warning("payout retry item %s failed: %s", item.id, exc)
+        db.commit()  # durable per item (see execute_payout)
     paid = sum(1 for i in items if i.status == "paid")
     payout.status = "complete" if paid == len(items) else ("partial" if paid else "failed")
     db.commit()

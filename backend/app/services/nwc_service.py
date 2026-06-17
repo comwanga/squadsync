@@ -80,8 +80,11 @@ def decode_response(secret_bytes: bytes, wallet_xonly: bytes, content: str) -> d
     """Decrypt a kind-23195 response. Return {'preimage': ...} or raise NwcError."""
     plaintext = decrypt_nip04(secret_bytes, wallet_xonly, content)
     data = json.loads(plaintext)
-    if data.get("error"):
-        raise NwcError(data["error"].get("message", "wallet returned an error"))
+    err = data.get("error")
+    if err:
+        # NIP-47 models error as {code, message}, but some wallets return a bare string.
+        msg = err.get("message") if isinstance(err, dict) else str(err)
+        raise NwcError(msg or "wallet returned an error")
     result = data.get("result") or {}
     preimage = result.get("preimage")
     if not preimage:
