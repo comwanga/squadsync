@@ -172,11 +172,15 @@ git commit -m "feat(ui): add generic Breadcrumb component"
 
 ---
 
-## Task 2: `EventBreadcrumb` client wrapper
+## Task 2: Event breadcrumb variants (`EventBreadcrumb` pure + `EventBreadcrumbAuto` self-resolving)
 
 **Files:**
 - Create: `frontend/components/layout/event-breadcrumb.tsx`
 - Test: `frontend/tests/components/event-breadcrumb.test.tsx`
+
+Two variants share a private item-builder + skeleton: a **pure** `EventBreadcrumb` (the page
+passes the already-loaded `title`) and a **self-resolving** `EventBreadcrumbAuto` (reads the
+title via `useEvent`, for pages that don't otherwise load the event).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -185,7 +189,7 @@ Create `frontend/tests/components/event-breadcrumb.test.tsx`:
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
+import { EventBreadcrumb, EventBreadcrumbAuto } from "@/components/layout/event-breadcrumb";
 import { useEvent } from "@/hooks/use-events";
 
 vi.mock("@/hooks/use-events", () => ({ useEvent: vi.fn() }));
@@ -193,33 +197,45 @@ const mockUseEvent = useEvent as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("EventBreadcrumb", () => {
-  it("shows the event title (linked) and the current leaf", () => {
-    mockUseEvent.mockReturnValue({ event: { id: "e1", title: "Hackathon 2026" }, isLoading: false });
-    render(<EventBreadcrumb eventId="e1" current="Attendees" />);
+describe("EventBreadcrumb (pure)", () => {
+  it("links the title and marks the current leaf", () => {
+    render(<EventBreadcrumb eventId="e1" title="Hackathon 2026" current="Attendees" />);
     expect(screen.getByRole("link", { name: "Hackathon 2026" })).toHaveAttribute("href", "/dashboard/events/e1");
     expect(screen.getByText("Attendees")).toHaveAttribute("aria-current", "page");
   });
 
-  it("uses the event title as the leaf when no current is given", () => {
-    mockUseEvent.mockReturnValue({ event: { id: "e1", title: "Hackathon 2026" }, isLoading: false });
-    render(<EventBreadcrumb eventId="e1" />);
+  it("uses the title as the leaf when no current is given", () => {
+    render(<EventBreadcrumb eventId="e1" title="Hackathon 2026" />);
     expect(screen.queryByRole("link", { name: "Hackathon 2026" })).toBeNull();
     expect(screen.getByText("Hackathon 2026")).toHaveAttribute("aria-current", "page");
   });
 
-  it("falls back to 'Event' when the event is missing (loaded, none found)", () => {
-    mockUseEvent.mockReturnValue({ event: undefined, isLoading: false });
-    render(<EventBreadcrumb eventId="e1" current="Configure" />);
-    expect(screen.getByText("Event")).toBeInTheDocument();
-    expect(screen.getByText("Configure")).toHaveAttribute("aria-current", "page");
-  });
-
-  it("shows a skeleton placeholder while loading", () => {
-    mockUseEvent.mockReturnValue({ event: undefined, isLoading: true });
+  it("shows a skeleton when title is undefined", () => {
     render(<EventBreadcrumb eventId="e1" current="Attendees" />);
     expect(screen.getByTestId("breadcrumb-title-skeleton")).toBeInTheDocument();
     expect(screen.getByText("Attendees")).toBeInTheDocument();
+  });
+});
+
+describe("EventBreadcrumbAuto (self-resolving)", () => {
+  it("resolves the title and marks the current leaf", () => {
+    mockUseEvent.mockReturnValue({ event: { id: "e1", title: "Hackathon 2026" }, isLoading: false });
+    render(<EventBreadcrumbAuto eventId="e1" current="Configure" />);
+    expect(screen.getByRole("link", { name: "Hackathon 2026" })).toHaveAttribute("href", "/dashboard/events/e1");
+    expect(screen.getByText("Configure")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows a skeleton while loading", () => {
+    mockUseEvent.mockReturnValue({ event: undefined, isLoading: true });
+    render(<EventBreadcrumbAuto eventId="e1" current="Allocation" />);
+    expect(screen.getByTestId("breadcrumb-title-skeleton")).toBeInTheDocument();
+    expect(screen.getByText("Allocation")).toBeInTheDocument();
+  });
+
+  it("falls back to 'Event' when loaded with no event", () => {
+    mockUseEvent.mockReturnValue({ event: undefined, isLoading: false });
+    render(<EventBreadcrumbAuto eventId="e1" current="Configure" />);
+    expect(screen.getByText("Event")).toBeInTheDocument();
   });
 });
 ```
@@ -229,7 +245,7 @@ describe("EventBreadcrumb", () => {
 Run: `cd frontend && npm test -- event-breadcrumb.test`
 Expected: FAIL — cannot resolve `@/components/layout/event-breadcrumb`.
 
-- [ ] **Step 3: Implement the wrapper**
+- [ ] **Step 3: Implement both variants**
 
 Create `frontend/components/layout/event-breadcrumb.tsx`:
 
@@ -239,23 +255,20 @@ Create `frontend/components/layout/event-breadcrumb.tsx`:
 import { useEvent } from "@/hooks/use-events";
 import { Breadcrumb, type BreadcrumbItem } from "@/components/layout/breadcrumb";
 
-export function EventBreadcrumb({ eventId, current }: { eventId: string; current?: string }) {
-  const { event, isLoading } = useEvent(eventId);
+// Fixed-size placeholder so swapping in the real title never shifts the layout.
+const titleSkeleton = (
+  <span
+    data-testid="breadcrumb-title-skeleton"
+    aria-hidden
+    className="inline-block h-4 w-24 align-middle rounded bg-muted animate-pulse"
+  />
+);
 
-  // Avoid the SWR flash / layout shift on a hard refresh: render a fixed-size
-  // skeleton while the title loads, fall back to "Event" if it loaded but is
-  // missing, otherwise the real title.
-  const titleLabel: BreadcrumbItem["label"] =
-    isLoading && !event ? (
-      <span
-        data-testid="breadcrumb-title-skeleton"
-        aria-hidden
-        className="inline-block h-4 w-24 align-middle rounded bg-muted animate-pulse"
-      />
-    ) : (
-      event?.title ?? "Event"
-    );
-
+function buildItems(
+  eventId: string,
+  titleLabel: BreadcrumbItem["label"],
+  current?: string,
+): BreadcrumbItem[] {
   const items: BreadcrumbItem[] = [
     { label: "Events", href: "/dashboard/events" },
     current
@@ -263,21 +276,50 @@ export function EventBreadcrumb({ eventId, current }: { eventId: string; current
       : { label: titleLabel },
   ];
   if (current) items.push({ label: current });
+  return items;
+}
 
-  return <Breadcrumb items={items} />;
+// Pure presentation: the page supplies the title it already loaded. Renders a
+// skeleton until `title` is defined (e.g. a client page's first paint).
+export function EventBreadcrumb({
+  eventId,
+  title,
+  current,
+}: {
+  eventId: string;
+  title?: string;
+  current?: string;
+}) {
+  return <Breadcrumb items={buildItems(eventId, title ?? titleSkeleton, current)} />;
+}
+
+// Self-resolving: for pages that don't otherwise load the event (the engine
+// page and the server-rendered configure page). Skeleton while loading; "Event"
+// only as a rare loaded-but-missing fallback (the page itself 404s then).
+export function EventBreadcrumbAuto({
+  eventId,
+  current,
+}: {
+  eventId: string;
+  current?: string;
+}) {
+  const { event, isLoading } = useEvent(eventId);
+  const titleLabel: BreadcrumbItem["label"] =
+    isLoading && !event ? titleSkeleton : (event?.title ?? "Event");
+  return <Breadcrumb items={buildItems(eventId, titleLabel, current)} />;
 }
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd frontend && npm test -- event-breadcrumb.test`
-Expected: PASS (4 passed).
+Expected: PASS (6 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add frontend/components/layout/event-breadcrumb.tsx frontend/tests/components/event-breadcrumb.test.tsx
-git commit -m "feat(ui): add EventBreadcrumb wrapper (title via useEvent + load skeleton)"
+git commit -m "feat(ui): add EventBreadcrumb (pure) + EventBreadcrumbAuto (self-resolving)"
 ```
 
 ---
@@ -293,7 +335,7 @@ git commit -m "feat(ui): add EventBreadcrumb wrapper (title via useEvent + load 
 
 > No new unit tests here — these are one-line wirings of already-tested components. Coverage is the `tsc` + `lint` + `build` gates in Step 6.
 
-- [ ] **Step 1: Event detail page**
+- [ ] **Step 1: Event detail page** (has `event` post-guard → pure variant with `title`)
 
 In `frontend/app/dashboard/events/[eventId]/page.tsx`, add the import after the existing lucide import line (line 16, `import { Users, Settings, ... } from "lucide-react";`):
 
@@ -301,13 +343,13 @@ In `frontend/app/dashboard/events/[eventId]/page.tsx`, add the import after the 
 import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
 ```
 
-Then add the breadcrumb as the first child of the main return's outer `<div className="space-y-6">`, immediately before the header `<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">`:
+Then add the breadcrumb as the first child of the main return's outer `<div className="space-y-6">`, immediately before the header `<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">`. `event` is guaranteed defined here (the page early-returns while loading / not-found):
 
 ```tsx
-      <EventBreadcrumb eventId={eventId} />
+      <EventBreadcrumb eventId={eventId} title={event.title} />
 ```
 
-- [ ] **Step 2: Attendees page**
+- [ ] **Step 2: Attendees page** (already has `useEvent` → pure variant; `event?.title` may be undefined on first paint → skeleton)
 
 In `frontend/app/dashboard/events/[eventId]/attendees/page.tsx`, add the import after the existing imports (e.g. after the `Skeleton` import):
 
@@ -318,37 +360,37 @@ import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
 Then make it the first child of the outer `<div className="space-y-6">` (before the `<div>` that holds `<h1>Attendees</h1>`):
 
 ```tsx
-      <EventBreadcrumb eventId={eventId} current="Attendees" />
+      <EventBreadcrumb eventId={eventId} title={event?.title} current="Attendees" />
 ```
 
-- [ ] **Step 3: Configure page**
+- [ ] **Step 3: Configure page** (server component, loads no event → self-resolving `Auto` variant)
 
 In `frontend/app/dashboard/events/[eventId]/configure/page.tsx`, add the import after the existing `ConfigForm` import:
 
 ```tsx
-import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
+import { EventBreadcrumbAuto } from "@/components/layout/event-breadcrumb";
 ```
 
 Then make it the first child of the outer `<div className="space-y-6">` (before the `<div>` that holds `<h1>Configure Allocation</h1>`):
 
 ```tsx
-      <EventBreadcrumb eventId={eventId} current="Configure" />
+      <EventBreadcrumbAuto eventId={eventId} current="Configure" />
 ```
 
-(`EventBreadcrumb` is a client component; rendering it inside this server component is fine.)
+(`EventBreadcrumbAuto` is a client component; rendering it inside this server component is fine.)
 
-- [ ] **Step 4: Engine page**
+- [ ] **Step 4: Engine page** (does not load the event → self-resolving `Auto` variant; leaf noun "Allocation")
 
 In `frontend/app/dashboard/events/[eventId]/engine/page.tsx`, add the import after the existing imports (e.g. after the `ResultsGrid` import):
 
 ```tsx
-import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
+import { EventBreadcrumbAuto } from "@/components/layout/event-breadcrumb";
 ```
 
 Then make it the first child of the outer `<div className="space-y-6">` (before the `<div>` that holds `<h1>Allocation Engine</h1>`):
 
 ```tsx
-      <EventBreadcrumb eventId={eventId} current="Run Allocation" />
+      <EventBreadcrumbAuto eventId={eventId} current="Allocation" />
 ```
 
 - [ ] **Step 5: Guide page — replace the ad-hoc back link with the shared Breadcrumb**
@@ -410,14 +452,15 @@ git commit -m "feat(ui): breadcrumbs on event pages + guide"
 ## Final verification (after all tasks)
 
 - [ ] `cd frontend && npx tsc --noEmit && npm run lint && npm test && npm run build` → all green.
-- [ ] Manual sanity (optional): on a nested page (e.g. `…/engine`), the breadcrumb reads `Events / {title} / Run Allocation`; clicking `{title}` returns to the event, clicking `Events` returns to the list; at 360px width the trail wraps without overflow or vertical collision.
+- [ ] Manual sanity (optional): on a nested page (e.g. `…/engine`), the breadcrumb reads `Events / {title} / Allocation`; clicking `{title}` returns to the event, clicking `Events` returns to the list; at 360px width the trail wraps without overflow or vertical collision.
 - [ ] Then use **superpowers:finishing-a-development-branch** to open the PR to `main`.
 
 ---
 
 ## Self-Review notes (plan author)
 
-- **Spec coverage:** generic `Breadcrumb` with semantic `<nav><ol>`, `flex-wrap` + `gap-y-1`, last-item `aria-current` (Task 1); `EventBreadcrumb` reading `useEvent` with **load skeleton** + `"Event"` fallback + optional `current` leaf (Task 2); integration on all four event pages + guide replacement (Task 3). All three polish notes are implemented: skeleton-on-load (Task 2 Step 3), semantic `<ol>` (Task 1 Step 3), `gap-x-1.5 gap-y-1` wrap (Task 1 Step 3).
-- **Type consistency:** `BreadcrumbItem { label: React.ReactNode; href?: string }` defined in Task 1 and imported/used in Task 2; `EventBreadcrumb({ eventId, current? })` props match every call site in Task 3; skeleton `data-testid="breadcrumb-title-skeleton"` matches the Task 2 test.
+- **Spec coverage:** generic `Breadcrumb` with semantic `<nav><ol>`, `flex-wrap` + `gap-y-1`, last-item `aria-current` (Task 1); **pure** `EventBreadcrumb({ eventId, title?, current? })` (skeleton when title undefined) + **self-resolving** `EventBreadcrumbAuto({ eventId, current? })` (load skeleton + `"Event"` fallback) (Task 2); integration — detail/attendees use the pure variant fed by their own event data, engine/configure use `Auto` (Task 3); guide uses the generic `Breadcrumb`.
+- **Review-driven adjustments folded in:** breadcrumbs are pure presentation where the page already has the title (detail, attendees) — no breadcrumb-initiated fetch; `Auto` self-resolves only where there's no other source (engine has no event load, configure is a server component). Skeleton (not a "Event"→title text swap) prevents flicker. Leaf noun is **"Allocation"** (not "Run Allocation"). No `icon` field — `label: ReactNode` already supports icon+text (YAGNI). Page `<h1>`s are preserved as primary headings.
+- **Type consistency:** `BreadcrumbItem { label: React.ReactNode; href?: string }` defined in Task 1, imported in Task 2; `EventBreadcrumb` takes `title?` (string), `EventBreadcrumbAuto` takes no title — call sites in Task 3 match (detail/attendees pass `title=`, engine/configure pass none); skeleton `data-testid="breadcrumb-title-skeleton"` matches both the pure and Auto tests.
 - **Placeholder scan:** none — every code step is complete.
 - **Privacy/scope:** no public pages or global nav touched; no backend changes.
