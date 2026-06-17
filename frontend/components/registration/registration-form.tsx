@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +27,7 @@ const schema = z.object({
   strength_other: z.string().optional(),
   experience_level: z.enum(["beginner", "intermediate", "advanced"]),
   npub: z.string().optional(),
+  lightning_address: z.string().optional(),
 }).refine(
   d => d.primary_strength !== "other" || (d.strength_other?.trim().length ?? 0) > 0,
   { message: "Please describe your strength", path: ["strength_other"] },
@@ -44,12 +45,59 @@ interface EventInfo {
 export function RegistrationForm({ event, slug }: { event: EventInfo; slug: string }) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, control, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { primary_strength: "technical", experience_level: "intermediate" },
   });
 
   const selectedStrength = watch("primary_strength");
+
+  useEffect(() => {
+    const prefillLightningAddress = async () => {
+      try {
+        if (typeof window === "undefined") return;
+
+        // Guard: don't overwrite a value the user already typed
+        // (read current value from the DOM; setValue hasn't run yet at mount)
+        let pk: string | null = null;
+
+        if ("nostr" in window) {
+          pk = await (window as Window & { nostr: { getPublicKey(): Promise<string> } }).nostr.getPublicKey();
+        } else {
+          const skHex = localStorage.getItem("squadsync:nostr_sk");
+          if (!skHex) return;
+          const hexToBytes = (hex: string): Uint8Array =>
+            new Uint8Array(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+          const { getPublicKey } = await import("nostr-tools");
+          pk = getPublicKey(hexToBytes(skHex));
+        }
+
+        if (!pk) return;
+
+        const { SimplePool } = await import("nostr-tools/pool");
+        const pool = new SimplePool();
+        const relays = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"];
+        const evt = await pool.get(relays, { kinds: [0], authors: [pk] });
+        pool.close(relays);
+
+        if (evt) {
+          const meta = JSON.parse(evt.content);
+          const ln = meta.lud16 || meta.lightning_address;
+          if (ln) {
+            // Only prefill if the field is still empty
+            const current = (document.getElementById("lightning_address") as HTMLInputElement | null)?.value;
+            if (!current) {
+              setValue("lightning_address", String(ln));
+            }
+          }
+        }
+      } catch {
+        // Best-effort: silently no-op on any failure
+      }
+    };
+
+    prefillLightningAddress();
+  }, [setValue]);
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -99,6 +147,14 @@ export function RegistrationForm({ event, slug }: { event: EventInfo; slug: stri
         <Input id="npub" placeholder="npub1…" {...register("npub")} />
         <p className="text-xs text-muted-foreground">
           Paste your Nostr npub to be DM&apos;d your team. Otherwise you can look it up after results are posted.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="lightning_address">Lightning address (optional)</Label>
+        <Input id="lightning_address" placeholder="you@walletofsatoshi.com" {...register("lightning_address")} />
+        <p className="text-xs text-muted-foreground">
+          Where to send your share if your team wins a Bitcoin prize. Auto-filled from your Nostr profile when available.
         </p>
       </div>
 
