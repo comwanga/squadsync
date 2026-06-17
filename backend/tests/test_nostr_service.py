@@ -38,3 +38,21 @@ def test_bech32_decode_nsec_vector():
     )
     assert hrp == "nsec"
     assert key.hex() == "67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa"
+
+
+from coincurve import PrivateKey
+
+
+def test_nip04_encrypt_decrypt_round_trip():
+    bot = PrivateKey()
+    recipient = PrivateKey()
+    recipient_xonly = recipient.public_key_xonly.format()
+    bot_xonly = bot.public_key_xonly.format()
+
+    message = "Hello from SquadSync — café ☕"
+    content = nostr_service.encrypt_nip04(bot.secret, recipient_xonly, message)
+    assert "?iv=" in content
+
+    # Recipient decrypts with their privkey + the bot's x-only pubkey.
+    recovered = nostr_service.decrypt_nip04(recipient.secret, bot_xonly, content)
+    assert recovered == message

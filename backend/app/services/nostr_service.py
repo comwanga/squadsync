@@ -4,7 +4,13 @@ Self-contained: decodes bech32 keys, encrypts/signs a kind-4 event, and
 publishes it to relays. `send_dm` never raises and no-ops when unconfigured.
 Personal secret keys must never be stored — `SQUADSYNC_NSEC` is a dedicated bot key.
 """
+import base64
 import logging
+import os
+
+from coincurve import PrivateKey, PublicKey
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 logger = logging.getLogger(__name__)
 
@@ -37,3 +43,38 @@ def bech32_decode(bech: str) -> tuple[str, bytes]:
             bits -= 8
             out.append((acc >> bits) & 0xFF)
     return hrp, bytes(out)
+
+
+def _shared_secret(privkey_bytes: bytes, peer_xonly: bytes) -> bytes:
+    """secp256k1 ECDH raw-X shared secret (NIP-04).
+
+    Reconstruct the peer point from its x-only key (assume even Y, the Nostr
+    convention), multiply by our scalar, and take the raw 32-byte X coordinate.
+    coincurve's `ecdh()` hashes the result, so we point-multiply instead.
+    """
+    peer_point = PublicKey(b"\x02" + peer_xonly)
+    product = peer_point.multiply(privkey_bytes)
+    return product.format(compressed=False)[1:33]
+
+
+def encrypt_nip04(privkey_bytes: bytes, peer_xonly: bytes, message: str) -> str:
+    """NIP-04 encrypt `message` → `base64(ciphertext)?iv=base64(iv)`."""
+    key = _shared_secret(privkey_bytes, peer_xonly)
+    iv = os.urandom(16)
+    padder = padding.PKCS7(128).padder()
+    data = padder.update(message.encode("utf-8")) + padder.finalize()
+    encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
+    ciphertext = encryptor.update(data) + encryptor.finalize()
+    return base64.b64encode(ciphertext).decode() + "?iv=" + base64.b64encode(iv).decode()
+
+
+def decrypt_nip04(privkey_bytes: bytes, peer_xonly: bytes, content: str) -> str:
+    """Inverse of `encrypt_nip04` (used by tests to prove the round trip)."""
+    key = _shared_secret(privkey_bytes, peer_xonly)
+    b64_ct, b64_iv = content.split("?iv=")
+    iv = base64.b64decode(b64_iv)
+    ciphertext = base64.b64decode(b64_ct)
+    decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
+    padded = decryptor.update(ciphertext) + decryptor.finalize()
+    unpadder = padding.PKCS7(128).unpadder()
+    return (unpadder.update(padded) + unpadder.finalize()).decode("utf-8")
