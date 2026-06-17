@@ -1,4 +1,10 @@
+import hashlib
+import json
+
+from coincurve import PrivateKey, PublicKeyXOnly
+
 from app.core.config import Settings
+from app.services import nostr_service
 
 
 def test_nostr_relays_defaults_split_on_comma():
@@ -21,9 +27,6 @@ def test_nostr_keys_default_unset():
     assert s.FEEDBACK_NPUB is None
 
 
-from app.services import nostr_service
-
-
 def test_bech32_decode_npub_vector():
     hrp, key = nostr_service.bech32_decode(
         "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
@@ -40,9 +43,6 @@ def test_bech32_decode_nsec_vector():
     assert key.hex() == "67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa"
 
 
-from coincurve import PrivateKey
-
-
 def test_nip04_encrypt_decrypt_round_trip():
     bot = PrivateKey()
     recipient = PrivateKey()
@@ -56,12 +56,6 @@ def test_nip04_encrypt_decrypt_round_trip():
     # Recipient decrypts with their privkey + the bot's x-only pubkey.
     recovered = nostr_service.decrypt_nip04(recipient.secret, bot_xonly, content)
     assert recovered == message
-
-
-import hashlib
-import json
-
-from coincurve import PublicKeyXOnly
 
 
 def test_build_signed_event_has_valid_id_and_sig():

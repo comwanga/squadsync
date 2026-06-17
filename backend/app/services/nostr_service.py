@@ -47,6 +47,8 @@ def bech32_decode(bech: str) -> tuple[str, bytes]:
         if bits >= 8:
             bits -= 8
             out.append((acc >> bits) & 0xFF)
+    if bits >= 5 or (acc & ((1 << bits) - 1)):
+        raise ValueError("invalid bech32 padding")
     return hrp, bytes(out)
 
 
@@ -113,9 +115,10 @@ def build_dm_event(privkey_bytes: bytes, recipient_xonly: bytes, message: str) -
 
 
 def _publish_to_relays(event: dict, relays: list[str]) -> bool:
-    """Open a short-lived websocket to each relay, send the EVENT, read one OK.
+    """Open a short-lived websocket to each relay, send the EVENT, read one frame.
 
-    Returns True if at least one relay accepted. Per-relay errors are swallowed.
+    Returns True if at least one relay *responded* (we don't parse the OK frame —
+    delivery confirmation is out of scope). Per-relay errors are swallowed.
     Imported lazily so the rest of the module has no hard websockets dependency
     at import time (and tests monkeypatch this function).
     """
