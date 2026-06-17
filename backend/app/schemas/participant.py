@@ -18,8 +18,21 @@ class ParticipantRegister(BaseModel):
     strength_other: Optional[str] = Field(default=None, max_length=120)
     experience_level: ExperienceLevel
     npub: Optional[str] = None
+    lightning_address: Optional[str] = Field(default=None, max_length=255)
     tech_stack: list[str] = []
     interests: list[str] = []
+
+    @field_validator("lightning_address", mode="before")
+    @classmethod
+    def _normalize_lightning_address(cls, v):
+        if v is None:
+            return None
+        v = str(v).strip().lower()
+        if not v:
+            return None
+        if v.count("@") != 1 or not all(v.split("@")):
+            raise ValueError("Lightning address must look like name@domain")
+        return v
 
     @model_validator(mode="after")
     def _require_other_text(self):
@@ -50,6 +63,7 @@ class ParticipantOut(BaseModel):
     strength_source: str
     experience_level: str
     npub: Optional[str]
+    lightning_address: Optional[str]
     composite_score: Optional[float]
 
     model_config = {"from_attributes": True}
