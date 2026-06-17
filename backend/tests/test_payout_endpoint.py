@@ -77,6 +77,28 @@ def test_payout_address_override_fills_missing(client, auth_headers, monkeypatch
     assert res.json()["status"] == "complete"
 
 
+def test_public_results_include_payout_summary(client, auth_headers, monkeypatch):
+    event_id, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    _stub_lightning(monkeypatch)
+    client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
+        "team_id": str(team_id), "total_sats": 210,
+        "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
+    })
+    # Public results are published-only.
+    client.post(f"/api/v1/events/{event_id}/allocations/{allocation_id}/publish", headers=auth_headers)
+
+    res = client.get(f"/api/v1/public/allocations/{allocation_id}")
+    assert res.status_code == 200, res.text
+    summary = res.json()["payouts"]
+    assert summary[0]["team_label"]
+    assert summary[0]["total_sats"] == 210
+    assert summary[0]["paid_count"] == len(members)
+    assert summary[0]["member_count"] == len(members)
+    # never leak the credential or invoice/preimage secrets
+    for leaked in ("nwc", "preimage", "bolt11", "lightning_address"):
+        assert leaked not in res.text.lower()
+
+
 def test_payout_models_importable_and_persist(db):
     import uuid
     from app.models.payout import Payout, PayoutItem
