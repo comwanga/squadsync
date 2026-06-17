@@ -61,7 +61,9 @@ async function main() {
   await page.waitForSelector('[role="dialog"]', { timeout: 10000 });
   await page.fill('input[id="title"]', "AI for Agriculture Hackathon");
   await page.fill('#description', "Build AI + satellite tools to improve crop yields.");
+  await page.fill('input[id="event_at"]', "2026-07-15T09:00");
   await page.fill('input[id="team_count"]', "3");
+  await page.fill('input[id="participant_limit"]', "30");
   await shot(page, "02-create-event");
   await page.click('button:has-text("Create Event")');
   await page.waitForURL(/\/dashboard\/events\/[^/]+$/, { timeout: 15000 });
@@ -94,9 +96,14 @@ async function main() {
     });
   }
 
-  // 04 attendees + QR
+  // 04 attendees + QR — wait for the FULL QR card (its Download button) AND the
+  // populated table, so neither the QR nor the roster is still a skeleton.
   await page.goto(`${BASE}/dashboard/events/${eventId}/attendees`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("text=Registration QR Code", { timeout: 45000 });
+  await page.waitForSelector('button:has-text("Download PNG")', { timeout: 45000 });
+  await page.waitForSelector("text=6 participants", { timeout: 45000 });
+  await page.waitForSelector("text=Carol", { timeout: 45000 });
+  await page.waitForTimeout(500);
   await shot(page, "04-attendees-qr");
 
   // 05 public join form (NEW form)
@@ -106,9 +113,12 @@ async function main() {
   await shot(join, "05-join-form");
   await join.close();
 
-  // 06 configure
+  // 06 configure — wait for BOTH cards (the form only renders past its loading
+  // skeleton once the config has loaded); "Role Constraints" is the last card.
   await page.goto(`${BASE}/dashboard/events/${eventId}/configure`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("text=Balancing Weights", { timeout: 45000 });
+  await page.waitForSelector("text=Role Constraints", { timeout: 45000 });
+  await page.waitForTimeout(500);
   await shot(page, "06-configure");
 
   // 07 engine results
