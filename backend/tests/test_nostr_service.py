@@ -1,6 +1,7 @@
 import hashlib
 import json
 
+import pytest
 from coincurve import PrivateKey, PublicKeyXOnly
 
 from app.core.config import Settings
@@ -129,9 +130,6 @@ def test_send_dm_swallows_publish_errors(monkeypatch):
     recipient = "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
     # Never propagates — returns False.
     assert nostr_service.send_dm(recipient, "hello") is False
-
-
-import pytest
 
 
 def test_validate_npub_accepts_valid():
