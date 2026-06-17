@@ -76,3 +76,26 @@ def test_notify_noop_when_nsec_unset(client, auth_headers, session_factory, monk
 
     tn.notify_teams_task(UUID(a["id"]))
     assert calls == []
+
+
+import app.api.v1.allocation as alloc_mod
+
+
+def test_publish_schedules_notify_task(client, auth_headers, monkeypatch):
+    scheduled = []
+    monkeypatch.setattr(alloc_mod, "notify_teams_task", lambda aid: scheduled.append(aid))
+
+    e = client.post("/api/v1/events", headers=auth_headers,
+                    json={"title": "Sched", "team_count": 2}).json()
+    client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
+    for i, s in enumerate(["technical", "design"]):
+        client.post(f"/api/v1/events/{e['registration_slug']}/register", json={
+            "name": f"P{i}", "email": f"s{i}@t.com",
+            "primary_strength": s, "experience_level": "intermediate"})
+    a = client.post(f"/api/v1/events/{e['id']}/allocate", headers=auth_headers).json()
+
+    res = client.post(f"/api/v1/events/{e['id']}/allocations/{a['id']}/publish", headers=auth_headers)
+    assert res.status_code == 200
+    # TestClient runs BackgroundTasks after the response; the scheduled task ran.
+    assert len(scheduled) == 1
+    assert str(scheduled[0]) == a["id"]
