@@ -78,10 +78,11 @@ proof rendered on `/results/{allocation_id}`.
 
 ## API (organizer-authenticated, under `/api/v1`)
 
-- `POST /allocations/{id}/payouts` — body `{ team_label, total_sats, nwc, items?: [{participant_id,
-  lightning_address}] }`. Pre-flight: compute split, resolve addresses, validate against LNURL
-  bounds; if any address missing/invalid, return `422` with per-member flags **before** spending.
-  On success, executes payments and returns the `Payout` with per-item results.
+- `POST /allocations/{id}/payouts` — body `{ team_id, total_sats, nwc, addresses?: {participant_id:
+  lightning_address} }`. The optional `addresses` map lets the organizer fill/correct a member's
+  Lightning address in the modal (overrides the registration value). Pre-flight: compute split,
+  resolve addresses; if any address is still missing, return `422` listing those members **before**
+  spending. On success, executes payments and returns the `Payout` with per-item results.
 - `POST /payouts/{id}/retry` — body `{ nwc }`; retries only `failed` items.
 - Public `GET /public/results/{allocation_id}` — extended to include a redacted payout summary
   (amounts, masked addresses, paid/failed counts); no NWC, no preimages-as-secrets beyond display.
@@ -106,8 +107,8 @@ proof rendered on `/results/{allocation_id}`.
 
 ## Error handling
 
-- **Missing/invalid address** → flagged in `422` pre-flight; organizer fills it or skips a member,
-  and the pot **re-splits** among the remaining members before any payment is sent.
+- **Missing address** → flagged in `422` pre-flight (before any spend); organizer fills it inline
+  via the `addresses` override and re-submits. (Skip-and-re-split is out of scope.)
 - **LNURL failure / amount below `minSendable` / above `maxSendable`** → that item `failed`,
   others continue.
 - **NWC timeout / wallet error response** → item `failed` with the wallet's error; "Retry failed".
