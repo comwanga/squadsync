@@ -55,6 +55,11 @@ There's a deliberate ordering because the two services reference each other's UR
 | `FRONTEND_URL` | **you set** | Vercel origin, for CORS. No trailing slash. |
 | `PUBLIC_API_URL` | **you set** | this API's own https URL. Must equal `NEXT_PUBLIC_API_URL`. |
 | `ANTHROPIC_API_KEY` | *optional* | enables AI normalization of free-text "Other" strengths. Unset = deterministic slug fallback. |
+| `SQUADSYNC_NSEC` | *optional* | dedicated **bot** Nostr secret key (`nsec1…`) that signs/encrypts outgoing DMs. Never a personal key. Unset = DMs are a no-op. |
+| `FEEDBACK_NPUB` | *optional* | owner's public key (`npub1…`) that receives Settings feedback DMs. |
+| `NOSTR_RELAYS` | *optional* | comma-separated relay URLs. Defaults to `relay.damus.io,nos.lol,relay.nostr.band`. |
+
+> **Nostr DM (optional).** The Settings feedback box (and later team notifications) send Nostr NIP-04 DMs. All three vars above are optional — leave them unset and feedback is still saved to the DB; only the DM is skipped. `SQUADSYNC_NSEC` must be a dedicated bot key, never a personal nsec.
 
 **Vercel — frontend** (Root Directory `frontend`)
 
