@@ -54,7 +54,7 @@ Add to `backend/tests/test_registration.py` (routes confirmed against `tests/tes
 ```python
 def test_register_accepts_lightning_address(client, auth_headers):
     e = client.post("/api/v1/events", headers=auth_headers,
-                    json={"title": "BTC++ Demo", "team_count": 1}).json()
+                    json={"title": "BTC++ Demo", "team_count": 2}).json()  # team_count has ge=2
     client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
     res = client.post(f"/api/v1/events/{e['registration_slug']}/register", json={
         "name": "Ada", "email": "ada@example.com",
@@ -790,47 +790,53 @@ git commit -m "feat(payout): NWC (NIP-47) pay_invoice client"
 
 - [ ] **Step 1: Write the failing endpoint test**
 
-Add to `backend/tests/test_payout_endpoint.py`. The helper below uses the routes confirmed in
-`tests/test_find_my_team.py` and `app/api/v1/allocation.py`: create event with `team_count=1` (so
-both registrants land on one team) → activate → register → allocate → read the single team.
+Add to `backend/tests/test_payout_endpoint.py`. The helper uses routes confirmed in
+`tests/test_find_my_team.py` and `app/api/v1/allocation.py`. IMPORTANT constraints learned from
+Task 1: the event schema requires `team_count >= 2`, and the allocation engine assigns members
+with a random seed — so we do NOT assume *which* participants land on a team. We register 4
+participants with `team_count=2` (the engine balances to ~2 per team) and drive every assertion
+off the **actual** members of `teams[0]` returned by the API. `all_have_addresses` toggles whether
+registrations include a Lightning address.
 
 ```python
-def _setup_team(client, auth_headers, members):
-    """members: list of (name, email, lightning_address|None).
-    Returns (event_id, allocation_id, team_id)."""
+def _setup_team(client, auth_headers, all_have_addresses):
+    """Register 4 participants, allocate into 2 teams, return the first team.
+
+    Returns (event_id, allocation_id, team_id, members) where `members` is the
+    list of member dicts (each has 'id' and 'name') on teams[0].
+    """
     e = client.post("/api/v1/events", headers=auth_headers,
-                    json={"title": "BTC++ Payout", "team_count": 1}).json()
+                    json={"title": "BTC++ Payout", "team_count": 2}).json()
     client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
     strengths = ["technical", "design", "planning", "coordination"]
-    for i, (name, email, ln) in enumerate(members):
-        body = {"name": name, "email": email,
-                "primary_strength": strengths[i % len(strengths)],
-                "experience_level": "intermediate"}
-        if ln:
-            body["lightning_address"] = ln
+    for i in range(4):
+        body = {"name": f"P{i}", "email": f"p{i}@t.com",
+                "primary_strength": strengths[i], "experience_level": "intermediate"}
+        if all_have_addresses:
+            body["lightning_address"] = f"p{i}@getalby.com"
         r = client.post(f"/api/v1/events/{e['registration_slug']}/register", json=body)
         assert r.status_code in (200, 201), r.text
     a = client.post(f"/api/v1/events/{e['id']}/allocate", headers=auth_headers).json()
     teams = client.get(f"/api/v1/allocations/{a['id']}/teams", headers=auth_headers).json()
-    assert teams, "expected at least one team"
-    return e["id"], a["id"], teams[0]["id"]
+    assert teams and teams[0]["members"], "expected a non-empty first team"
+    return e["id"], a["id"], teams[0]["id"], teams[0]["members"]
 
 
-def test_payout_pays_team_and_records_results(client, auth_headers, monkeypatch):
+def _stub_lightning(monkeypatch):
+    """Stub LNURL + NWC so no real network happens. Returns the list of paid bolt11s."""
     from app.services import lnurl_service, nwc_service
-
-    _, allocation_id, team_id = _setup_team(client, auth_headers, [
-        ("Ada", "ada@t.com", "ada@getalby.com"),
-        ("Linus", "linus@t.com", "linus@getalby.com"),
-    ])
-
-    # Stub the network: every address resolves, every invoice is fake, every pay returns a preimage.
     monkeypatch.setattr(lnurl_service, "resolve_lnurl",
                         lambda addr: {"callback": "https://x/cb", "minSendable": 1000, "maxSendable": 10_000_000})
     monkeypatch.setattr(lnurl_service, "request_invoice", lambda params, amount_sats: f"lnbc{amount_sats}fake")
     paid = []
     monkeypatch.setattr(nwc_service, "pay_invoice",
                         lambda uri, bolt11: (paid.append(bolt11), "preimage_" + bolt11)[1])
+    return paid
+
+
+def test_payout_pays_team_and_records_results(client, auth_headers, monkeypatch):
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    paid = _stub_lightning(monkeypatch)
 
     res = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
         "team_id": str(team_id), "total_sats": 210,
@@ -840,17 +846,15 @@ def test_payout_pays_team_and_records_results(client, auth_headers, monkeypatch)
     assert res.status_code == 201, res.text
     body = res.json()
     assert body["status"] == "complete"
-    assert len(body["items"]) == 2
-    assert sum(i["amount_sats"] for i in body["items"]) == 210
+    assert len(body["items"]) == len(members)
+    assert sum(i["amount_sats"] for i in body["items"]) == 210   # full pot paid, no sats lost
     assert all(i["status"] == "paid" and i["preimage"] for i in body["items"])
-    assert len(paid) == 2
+    assert len(paid) == len(members)
 
 
 def test_payout_422_when_member_missing_address(client, auth_headers):
-    _, allocation_id, team_id = _setup_team(client, auth_headers, [
-        ("Ada", "ada@t.com", "ada@getalby.com"),
-        ("NoAddr", "noaddr@t.com", None),
-    ])
+    # No participant has an address, so any team triggers the pre-flight 422.
+    _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=False)
     res = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
         "team_id": str(team_id), "total_sats": 210,
         "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
@@ -860,33 +864,21 @@ def test_payout_422_when_member_missing_address(client, auth_headers):
 
 
 def test_payout_address_override_fills_missing(client, auth_headers, monkeypatch):
-    from app.services import lnurl_service, nwc_service
-    _, allocation_id, team_id = _setup_team(client, auth_headers, [
-        ("Ada", "ada@t.com", "ada@getalby.com"),
-        ("NoAddr", "noaddr@t.com", None),
-    ])
-    # Find the participant id of the member with no address (organizer team view).
-    teams = client.get(f"/api/v1/allocations/{allocation_id}/teams", headers=auth_headers).json()
-    members = teams[0]["members"]
-    no_addr_id = next(m["id"] for m in members if m["name"] == "NoAddr")
-
-    monkeypatch.setattr(lnurl_service, "resolve_lnurl",
-                        lambda addr: {"callback": "https://x/cb", "minSendable": 1000, "maxSendable": 10_000_000})
-    monkeypatch.setattr(lnurl_service, "request_invoice", lambda params, amount_sats: "lnbcfake")
-    monkeypatch.setattr(nwc_service, "pay_invoice", lambda uri, bolt11: "preimage")
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=False)
+    _stub_lightning(monkeypatch)
+    # Supply an address for every member of teams[0] via the override map.
+    overrides = {m["id"]: f"{m['name']}@getalby.com" for m in members}
 
     res = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
         "team_id": str(team_id), "total_sats": 210,
         "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
-        "addresses": {no_addr_id: "noaddr@getalby.com"},
+        "addresses": overrides,
     })
     assert res.status_code == 201, res.text
     assert res.json()["status"] == "complete"
 ```
 
 > `TeamOut.members` exposes member `id` and `name` (see `app/schemas/allocation.py` / `teams.py`).
-> If `team_count=1` does not yield a single team with both members in this engine, switch the helper
-> to `team_count=1` semantics it does support, or read the team that actually contains both emails.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1157,17 +1149,12 @@ route has a `response_model`, we must add a typed `payouts` field to `PublicAllo
 
 Add to `backend/tests/test_payout_endpoint.py` (`_setup_team` returns `event_id` so we can publish):
 
+This test reuses `_setup_team` and `_stub_lightning` from Task 7 (same file).
+
 ```python
 def test_public_results_include_payout_summary(client, auth_headers, monkeypatch):
-    from app.services import lnurl_service, nwc_service
-    event_id, allocation_id, team_id = _setup_team(client, auth_headers, [
-        ("Ada", "ada@t.com", "ada@getalby.com"),
-        ("Linus", "linus@t.com", "linus@getalby.com"),
-    ])
-    monkeypatch.setattr(lnurl_service, "resolve_lnurl",
-                        lambda addr: {"callback": "https://x/cb", "minSendable": 1000, "maxSendable": 10_000_000})
-    monkeypatch.setattr(lnurl_service, "request_invoice", lambda params, amount_sats: "lnbcfake")
-    monkeypatch.setattr(nwc_service, "pay_invoice", lambda uri, bolt11: "preimage")
+    event_id, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    _stub_lightning(monkeypatch)
     client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
         "team_id": str(team_id), "total_sats": 210,
         "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
@@ -1180,8 +1167,8 @@ def test_public_results_include_payout_summary(client, auth_headers, monkeypatch
     summary = res.json()["payouts"]
     assert summary[0]["team_label"]
     assert summary[0]["total_sats"] == 210
-    assert summary[0]["paid_count"] == 2
-    assert summary[0]["member_count"] == 2
+    assert summary[0]["paid_count"] == len(members)
+    assert summary[0]["member_count"] == len(members)
     # never leak the credential or invoice/preimage secrets
     for leaked in ("nwc", "preimage", "bolt11", "lightning_address"):
         assert leaked not in res.text.lower()
