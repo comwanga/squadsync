@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Users, Settings, Zap, ArrowRight, Archive, Trash2, Calendar } from "lucide-react";
+import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
 
 export default function EventPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -77,6 +78,7 @@ export default function EventPage({ params }: { params: Promise<{ eventId: strin
 
   return (
     <div className="space-y-6">
+      <EventBreadcrumb eventId={eventId} title={event.title} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{event.title}</h1>
