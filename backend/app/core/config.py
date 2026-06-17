@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
     CATEGORIZATION_MODEL: str = "claude-haiku-4-5-20251001"
 
+    # --- Nostr DM sender (all optional; unset → DM sending is a no-op) ---
+    # Dedicated *bot* secret key (bech32 `nsec1…`) used ONLY to sign/encrypt
+    # outgoing DMs. NEVER put a personal nsec here. When unset, send_dm no-ops.
+    SQUADSYNC_NSEC: str | None = None
+    # Recipient for the Settings feedback box (bech32 `npub1…`, the owner's public key).
+    FEEDBACK_NPUB: str | None = None
+    # Comma-separated relay websocket URLs to publish DMs to.
+    NOSTR_RELAYS: str = "wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band"
+
+    @property
+    def nostr_relays(self) -> list[str]:
+        return [r.strip() for r in self.NOSTR_RELAYS.split(",") if r.strip()]
+
     class Config:
         env_file = ".env"
 
