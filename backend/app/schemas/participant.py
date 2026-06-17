@@ -35,8 +35,7 @@ class ParticipantRegister(BaseModel):
         v = str(v).strip().lower()
         if not v:
             return None
-        validate_npub(v)  # raises ValueError (→ 422) if malformed
-        return v
+        return validate_npub(v)  # raises ValueError (→ 422) if malformed; returns the normalized npub
 
 
 class ParticipantOut(BaseModel):
