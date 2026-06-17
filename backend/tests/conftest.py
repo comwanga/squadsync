@@ -54,6 +54,12 @@ def db():
         session.close()
 
 
+@pytest.fixture
+def session_factory():
+    """The test session factory — used to monkeypatch SessionLocal in background-task tests."""
+    return TestingSessionLocal
+
+
 def override_get_db():
     session = TestingSessionLocal()
     try:
