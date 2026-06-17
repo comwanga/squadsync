@@ -125,7 +125,7 @@ Backend (SQLite, matching existing suite):
 - `payout_service` / endpoint — pre-flight `422` on missing address; status roll-up
   `complete`/`partial`/`failed`; retry touches only `failed` items; NWC never persisted.
 
-Manual stage demo on **mainnet with tiny amounts** (e.g. 21 sats/member) for maximum swag.
+Manual end-to-end verification uses a real NWC wallet and small mainnet amounts.
 
 ## Scope guardrails (YAGNI)
 

@@ -54,7 +54,7 @@ Add to `backend/tests/test_registration.py` (routes confirmed against `tests/tes
 ```python
 def test_register_accepts_lightning_address(client, auth_headers):
     e = client.post("/api/v1/events", headers=auth_headers,
-                    json={"title": "BTC++ Demo", "team_count": 2}).json()  # team_count has ge=2
+                    json={"title": "Payout Test", "team_count": 2}).json()  # team_count has ge=2
     client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
     res = client.post(f"/api/v1/events/{e['registration_slug']}/register", json={
         "name": "Ada", "email": "ada@example.com",
@@ -1294,9 +1294,9 @@ Fields: total prize (sats, number input) and NWC connection string (password-sty
 
 On the response, list each item: ✅ green with a shortened preimage (`preimage.slice(0,12)…`) when `status === "paid"`, ❌ red with `error` when `failed`. If any failed, show a "Retry failed" button that calls `retryPayout` and re-renders. Never store or log the NWC string beyond the in-memory modal state; clear it when the modal closes.
 
-- [ ] **Step 5: Manual verification (the demo path)**
+- [ ] **Step 5: Manual verification**
 
-With a funded NWC wallet (Alby Hub / Coinos) and two participants whose Lightning addresses you control, run a real payout of a tiny amount (e.g. 21 sats) and confirm both members receive sats and the UI shows preimages. This is the stage demo — rehearse it.
+With a funded NWC wallet and two participants whose Lightning addresses you control, run a real payout of a small amount and confirm both members receive sats and the UI shows preimages.
 
 - [ ] **Step 6: Commit**
 
@@ -1333,6 +1333,6 @@ git commit -m "feat(payout): prize-paid badge on public results"
 
 - [ ] Backend suite green: `cd backend && python -m pytest -q`
 - [ ] Migration applies cleanly: `cd backend && DATABASE_URL="sqlite:///./scratch.db" SECRET_KEY=x python -m alembic upgrade head && rm -f scratch.db`
-- [ ] End-to-end rehearsal: real NWC wallet, two real Lightning addresses, 21-sat payout, preimages shown, public badge appears.
+- [ ] End-to-end manual check: real NWC wallet, two real Lightning addresses, small payout, preimages shown, public badge appears.
 - [ ] Confirm the NWC string never appears in DB, logs, or any API response (`grep -rin "nwc" backend/app` shows only transient request handling).
 ```
