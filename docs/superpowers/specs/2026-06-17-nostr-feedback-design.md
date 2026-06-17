@@ -39,7 +39,9 @@ which is **stored in the DB** (source of truth) and best-effort **DM'd to the ow
   - Decode bot privkey (from nsec) and recipient x-only pubkey (from npub).
   - **NIP-04 encrypt**:
     - ECDH shared secret = secp256k1 ECDH of bot priv with recipient pubkey (compressed `02||x`),
-      taking the **raw 32-byte X** (coincurve `ecdh(pub, hashfn=lambda x, y: x)`).
+      taking the **raw 32-byte X**. (Implementation note: `coincurve==20.0.0`'s `ecdh()` hashes the
+      result and takes no `hashfn`, so the code uses point-multiply
+      `PublicKey(b"\x02"+xonly).multiply(priv).format(compressed=False)[1:33]` instead.)
     - AES-256-CBC (cryptography) with a random 16-byte IV; PKCS7 pad.
     - `content = base64(ciphertext) + "?iv=" + base64(iv)`.
   - Build event `{ pubkey: bot_xonly_hex, created_at, kind: 4, tags: [["p", recipient_hex]], content }`,
