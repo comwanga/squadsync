@@ -4,9 +4,10 @@ from app.models.participant import Participant
 from app.models.allocation import AllocationConfig, Allocation
 from app.models.team import Team, TeamMember
 from app.models.used_event import UsedAuthEvent
+from app.models.feedback import Feedback
 
 __all__ = [
     "User", "Event", "EventCoOrganizer", "Participant",
     "AllocationConfig", "Allocation", "Team", "TeamMember",
-    "UsedAuthEvent",
+    "UsedAuthEvent", "Feedback",
 ]
