@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Moon, Sun, BookOpen, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FeedbackCard } from "@/components/settings/feedback-card";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -72,6 +73,8 @@ export default function SettingsPage() {
           </CardHeader>
         </Card>
       </Link>
+
+      <FeedbackCard />
     </div>
   );
 }

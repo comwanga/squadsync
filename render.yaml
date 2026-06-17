@@ -40,3 +40,12 @@ services:
       # Unset = deterministic slug fallback (no AI). Get a key at console.anthropic.com.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Optional: Nostr DM sender for the feedback box (and future team notifications).
+      # All three are optional — unset = feedback is still saved to the DB, the DM is skipped.
+      # SQUADSYNC_NSEC must be a DEDICATED BOT nsec — never a personal key.
+      - key: SQUADSYNC_NSEC
+        sync: false
+      - key: FEEDBACK_NPUB
+        sync: false
+      - key: NOSTR_RELAYS
+        sync: false
