@@ -17,10 +17,30 @@ from app.models.participant import Participant
 
 logger = logging.getLogger(__name__)
 
+# Cap participants per AI call so a batch's tool-use output cannot exceed
+# _MAX_TOKENS and truncate — a truncated tool call would fail to parse and
+# silently drop the whole batch to the deterministic fallback.
+_BATCH_SIZE = 25
+_MAX_TOKENS = 4096
+
+_SYSTEM_INSTRUCTIONS = (
+    "You normalize each participant's free-text strength into exactly one of a "
+    "fixed set of categories so a downstream deterministic engine can compare "
+    "them. You never assign teams. Map each participant to the single best-fit "
+    "category. If a participant's text is too vague, empty, or unrelated to every "
+    "category, OMIT them from the assignments instead of guessing — an omitted "
+    "participant is handled by a deterministic fallback and an organizer can set "
+    "their category by hand."
+)
+
 
 def _slug(text: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "_", text.strip().lower()).strip("_")
     return s or "other"
+
+
+def _category_catalog() -> str:
+    return ", ".join(f"{v} ({STRENGTH_LABELS[v]})" for v in CONCRETE_STRENGTHS)
 
 
 def _pending(db: Session, event_id: UUID) -> list[Participant]:
@@ -36,12 +56,12 @@ def _pending(db: Session, event_id: UUID) -> list[Participant]:
     )
 
 
-def _classify(event: Event, participants: list[Participant]) -> dict[str, str]:
-    """Call Claude; return {participant_id: concrete_category}. Raises on failure."""
-    import anthropic
+def _build_request(event: Event, participants: list[Participant]) -> dict:
+    """Build the Messages API kwargs. Pure (no network) so it is unit-testable.
 
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-    categories = ", ".join(f"{v} ({STRENGTH_LABELS[v]})" for v in CONCRETE_STRENGTHS)
+    The static instructions + category catalog go in a cacheable system block;
+    the per-event context and participant list go in the user message.
+    """
     people = "\n".join(f"- id={p.id}: {p.strength_other}" for p in participants)
     tool = {
         "name": "assign_categories",
@@ -64,27 +84,45 @@ def _classify(event: Event, participants: list[Participant]) -> dict[str, str]:
             "required": ["assignments"],
         },
     }
-    msg = client.messages.create(
-        model=settings.CATEGORIZATION_MODEL,
-        max_tokens=1024,
-        tools=[tool],
-        tool_choice={"type": "tool", "name": "assign_categories"},
-        messages=[{
+    return {
+        "model": settings.CATEGORIZATION_MODEL,
+        "max_tokens": _MAX_TOKENS,
+        "system": [{
+            "type": "text",
+            "text": f"{_SYSTEM_INSTRUCTIONS}\n\nAvailable categories: {_category_catalog()}",
+            "cache_control": {"type": "ephemeral"},
+        }],
+        "tools": [tool],
+        "tool_choice": {"type": "tool", "name": "assign_categories"},
+        "messages": [{
             "role": "user",
             "content": (
                 f"Event: {event.title}\nDescription: {event.description or '(none)'}\n\n"
-                f"Available categories: {categories}\n\n"
-                f"Map each participant's free-text strength to the best category.\n{people}"
+                f"Map each participant's free-text strength to the best category, "
+                f"omitting any that are too unclear to place.\n{people}"
             ),
         }],
-    )
+    }
+
+
+def _parse_assignments(content_blocks) -> dict[str, str]:
+    """Extract {id: category} from tool_use blocks, dropping out-of-taxonomy values."""
     out: dict[str, str] = {}
-    for block in msg.content:
+    for block in content_blocks:
         if getattr(block, "type", None) == "tool_use":
-            for a in block.input["assignments"]:
-                if a["category"] in CONCRETE_STRENGTHS:
+            for a in block.input.get("assignments", []):
+                if a.get("category") in CONCRETE_STRENGTHS and a.get("id"):
                     out[a["id"]] = a["category"]
     return out
+
+
+def _classify(event: Event, participants: list[Participant]) -> dict[str, str]:
+    """Call Claude for one batch; return {participant_id: concrete_category}. Raises on failure."""
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    msg = client.messages.create(**_build_request(event, participants))
+    return _parse_assignments(msg.content)
 
 
 def normalize_pending(db: Session, event_id: UUID) -> dict[str, int]:
@@ -101,11 +139,14 @@ def normalize_pending(db: Session, event_id: UUID) -> dict[str, int]:
 
     mapping: dict[str, str] = {}
     if settings.ANTHROPIC_API_KEY:
-        try:
-            mapping = _classify(event, pending)
-        except Exception as exc:  # noqa: BLE001 — AI is best-effort
-            logger.warning("Categorization AI failed, using fallback: %s", exc)
-            mapping = {}
+        # Batch so output can't truncate, and so one failing batch only forces its
+        # own members to the fallback rather than dumping everyone.
+        for i in range(0, len(pending), _BATCH_SIZE):
+            batch = pending[i:i + _BATCH_SIZE]
+            try:
+                mapping.update(_classify(event, batch))
+            except Exception as exc:  # noqa: BLE001 — AI is best-effort, per batch
+                logger.warning("Categorization AI batch failed, using fallback: %s", exc)
 
     for p in pending:
         ai_cat = mapping.get(str(p.id))

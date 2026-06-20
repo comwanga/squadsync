@@ -131,7 +131,7 @@ def test_register_rejects_malformed_npub(client, auth_headers):
 def test_register_rejects_nsec_as_npub(client, auth_headers):
     e = _active_event(client, auth_headers)
     res = _register(client, e["registration_slug"], email="nsec@t.com",
-                    npub="nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9")
+                    npub="nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5")
     assert res.status_code == 422
 
 

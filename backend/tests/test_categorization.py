@@ -2,6 +2,7 @@ from unittest.mock import patch
 import uuid
 
 from app.core.database import Base
+from app.core.taxonomy import CONCRETE_STRENGTHS
 from app.models.event import Event
 from app.models.participant import Participant
 from app.models.user import User
@@ -62,6 +63,81 @@ def test_fallback_when_no_key(db, monkeypatch):
     db.refresh(p)
     assert p.normalized_strength  # slug of "Agronomist"
     assert p.strength_source == "fallback"
+
+
+def _add_other(db, event_id, n, prefix):
+    for i in range(n):
+        db.add(Participant(
+            event_id=event_id, name=f"{prefix}{i}", email=f"{prefix}{i}@t.com",
+            primary_strength="other", strength_other=f"role {i}",
+            experience_level="beginner", strength_source="preset",
+            composite_score=1.0, tech_stack=[], interests=[],
+        ))
+    db.commit()
+
+
+def test_build_request_has_cached_system_and_raised_max_tokens(db):
+    e, p = _event_with_other(db)
+    req = cat._build_request(e, [p])
+    # Static taxonomy + instructions live in a cacheable system block.
+    assert isinstance(req["system"], list)
+    assert req["system"][0]["cache_control"]["type"] == "ephemeral"
+    # Headroom so a full batch's tool output can't truncate (was 1024).
+    assert req["max_tokens"] >= 2048
+    # The tool still constrains output to the concrete categories.
+    enum = req["tools"][0]["input_schema"]["properties"]["assignments"]["items"]["properties"]["category"]["enum"]
+    assert enum == list(CONCRETE_STRENGTHS)
+    # The participant and an abstention instruction both reach the model.
+    user_text = req["messages"][0]["content"]
+    assert str(p.id) in user_text
+    blob = (req["system"][0]["text"] + user_text).lower()
+    assert "omit" in blob
+
+
+def test_parse_assignments_keeps_valid_drops_invalid():
+    class Block:
+        type = "tool_use"
+        input = {"assignments": [
+            {"id": "a", "category": "research"},
+            {"id": "b", "category": "not_a_category"},  # outside the taxonomy -> dropped
+        ]}
+    assert cat._parse_assignments([Block()]) == {"a": "research"}
+
+
+def test_normalize_batches_large_pending(db, monkeypatch):
+    e, _ = _event_with_other(db)  # 1 existing "other"
+    extra = cat._BATCH_SIZE + 4
+    _add_other(db, e.id, extra, "x")
+    monkeypatch.setattr(cat.settings, "ANTHROPIC_API_KEY", "k")
+    sizes = []
+
+    def fake_classify(event, parts):
+        sizes.append(len(parts))
+        return {str(pp.id): "research" for pp in parts}
+
+    monkeypatch.setattr(cat, "_classify", fake_classify)
+    counts = cat.normalize_pending(db, e.id)
+    assert counts["ai"] == extra + 1          # everyone categorized, none lost
+    assert len(sizes) >= 2                     # split across batches
+    assert max(sizes) <= cat._BATCH_SIZE       # no batch exceeds the cap
+
+
+def test_normalize_isolates_batch_failure(db, monkeypatch):
+    e, _ = _event_with_other(db)  # 1 in batch 2
+    _add_other(db, e.id, cat._BATCH_SIZE, "y")  # fills batch 1
+    monkeypatch.setattr(cat.settings, "ANTHROPIC_API_KEY", "k")
+    calls = {"n": 0}
+
+    def flaky(event, parts):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom")  # only the first batch fails
+        return {str(pp.id): "research" for pp in parts}
+
+    monkeypatch.setattr(cat, "_classify", flaky)
+    counts = cat.normalize_pending(db, e.id)
+    # A single failed batch falls back locally; the rest still get AI — never all-or-nothing.
+    assert counts["ai"] >= 1 and counts["fallback"] >= 1
 
 
 def test_manual_override_not_touched(db, monkeypatch):
