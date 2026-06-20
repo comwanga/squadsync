@@ -116,3 +116,34 @@ def _parse_rationales(content_blocks) -> dict[str, dict]:
                         "strengths": list(r["strengths"]), "gaps": list(r["gaps"]),
                     }
     return out
+
+
+def _classify(event: Event, payloads: list[dict]) -> dict[str, dict]:
+    """Call Claude for all teams; return {team_id: rationale}. Raises on failure."""
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    msg = client.messages.create(**_build_request(event, payloads))
+    return _parse_rationales(msg.content)
+
+
+def generate(db: Session, allocation: Allocation) -> dict[str, dict]:
+    """Generate + persist a rationale per team. Raises RationaleUnavailable with no key."""
+    if not settings.ANTHROPIC_API_KEY:
+        raise RationaleUnavailable("AI rationale requires ANTHROPIC_API_KEY")
+    event = db.query(Event).filter(Event.id == allocation.event_id).first()
+    payloads = _team_payloads(db, allocation)
+
+    mapping: dict[str, dict] = {}
+    try:
+        mapping = _classify(event, payloads)
+    except Exception as exc:  # noqa: BLE001 — best-effort; teams without a rationale just stay null
+        logger.warning("Rationale generation failed: %s", exc)
+
+    teams = db.query(Team).filter(Team.allocation_id == allocation.id).all()
+    for team in teams:
+        r = mapping.get(str(team.id))
+        if r:
+            team.rationale = r
+    db.commit()
+    return mapping

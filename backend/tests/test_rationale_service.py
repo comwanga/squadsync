@@ -54,3 +54,47 @@ def test_parse_rationales_tolerates_omitted_team():
         type = "tool_use"
         input = {"rationales": []}
     assert rat._parse_rationales([Block()]) == {}
+
+
+import uuid
+import pytest
+from app.models.allocation import Allocation
+from app.models.event import Event
+from app.models.participant import Participant
+from app.models.team import Team, TeamMember
+from app.models.user import User
+
+
+def _alloc_with_team(db):
+    u = User(pubkey="c" * 64); db.add(u); db.commit()
+    e = Event(owner_id=u.id, title="Hack", description="d", team_count=1,
+              registration_slug=f"s{uuid.uuid4().hex[:6]}", status="allocated")
+    db.add(e); db.commit()
+    alloc = Allocation(event_id=e.id, snapshot_hash=uuid.uuid4().hex, status="draft",
+                       constraint_warnings={})
+    db.add(alloc); db.flush()
+    team = Team(allocation_id=alloc.id, name="Team 01"); db.add(team); db.flush()
+    p = Participant(event_id=e.id, name="Alice", email="a@t.com", primary_strength="technical",
+                    experience_level="advanced", strength_source="preset", composite_score=3.0,
+                    tech_stack=[], interests=[]); db.add(p); db.flush()
+    db.add(TeamMember(team_id=team.id, participant_id=p.id)); db.commit()
+    return e, alloc, team
+
+
+def test_generate_persists_rationale(db, monkeypatch):
+    e, alloc, team = _alloc_with_team(db)
+    monkeypatch.setattr(rat.settings, "ANTHROPIC_API_KEY", "k")
+    monkeypatch.setattr(rat, "_classify", lambda event, payloads: {
+        str(team.id): {"title": "Builders", "summary": "Strong.", "strengths": ["x"], "gaps": []},
+    })
+    out = rat.generate(db, alloc)
+    assert out[str(team.id)]["title"] == "Builders"
+    db.refresh(team)
+    assert team.rationale["summary"] == "Strong."
+
+
+def test_generate_without_key_raises(db, monkeypatch):
+    _e, alloc, _team = _alloc_with_team(db)
+    monkeypatch.setattr(rat.settings, "ANTHROPIC_API_KEY", None)
+    with pytest.raises(rat.RationaleUnavailable):
+        rat.generate(db, alloc)
