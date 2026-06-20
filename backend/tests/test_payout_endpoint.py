@@ -1,3 +1,6 @@
+import hashlib
+
+
 def _setup_team(client, auth_headers, all_have_addresses):
     """Register 4 participants, allocate into 2 teams, return the first team.
 
@@ -22,14 +25,29 @@ def _setup_team(client, auth_headers, all_have_addresses):
 
 
 def _stub_lightning(monkeypatch):
-    """Stub LNURL + NWC so no real network happens. Returns the list of paid bolt11s."""
+    """Stub LNURL + NWC like an honest wallet: each invoice carries a payment hash
+    and `pay_invoice` returns the preimage that hashes to it. Returns the list of
+    paid bolt11s."""
     from app.services import lnurl_service, nwc_service
+    from tests.lightning_helpers import invoice_for_preimage
     monkeypatch.setattr(lnurl_service, "resolve_lnurl",
                         lambda addr: {"callback": "https://x/cb", "minSendable": 1000, "maxSendable": 10_000_000})
-    monkeypatch.setattr(lnurl_service, "request_invoice", lambda params, amount_sats: f"lnbc{amount_sats}fake")
+    preimages: dict[str, str] = {}
+
+    def _invoice(params, amount_sats):
+        preimage = hashlib.sha256(f"pre-{amount_sats}".encode()).hexdigest()
+        inv = invoice_for_preimage(preimage)
+        preimages[inv] = preimage
+        return inv
+
+    monkeypatch.setattr(lnurl_service, "request_invoice", _invoice)
     paid = []
-    monkeypatch.setattr(nwc_service, "pay_invoice",
-                        lambda uri, bolt11: (paid.append(bolt11), "preimage_" + bolt11)[1])
+
+    def _pay(uri, bolt11):
+        paid.append(bolt11)
+        return preimages[bolt11]
+
+    monkeypatch.setattr(nwc_service, "pay_invoice", _pay)
     return paid
 
 
@@ -49,6 +67,50 @@ def test_payout_pays_team_and_records_results(client, auth_headers, monkeypatch)
     assert sum(i["amount_sats"] for i in body["items"]) == 210   # full pot paid, no sats lost
     assert all(i["status"] == "paid" and i["preimage"] for i in body["items"])
     assert len(paid) == len(members)
+
+
+def test_payout_unverified_when_preimage_mismatch(client, auth_headers, monkeypatch):
+    # A wallet that returns a preimage NOT matching the invoice must never be
+    # recorded as paid — there is no proof the sats moved.
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    from app.services import lnurl_service, nwc_service
+    from tests.lightning_helpers import invoice_for_preimage
+    monkeypatch.setattr(lnurl_service, "resolve_lnurl",
+                        lambda addr: {"callback": "https://x/cb", "minSendable": 1000, "maxSendable": 10_000_000})
+    monkeypatch.setattr(lnurl_service, "request_invoice",
+                        lambda params, amount_sats: invoice_for_preimage("11" * 32))
+    monkeypatch.setattr(nwc_service, "pay_invoice", lambda uri, bolt11: "22" * 32)
+
+    res = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
+        "team_id": str(team_id), "total_sats": 210,
+        "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
+    })
+
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["status"] == "failed"  # nothing proven paid
+    assert len(body["items"]) == len(members)
+    assert all(i["status"] == "unverified" for i in body["items"])
+    assert all("preimage" in (i["error"] or "").lower() for i in body["items"])
+
+
+def test_payout_idempotent_second_call_rejected(client, auth_headers, monkeypatch):
+    # A team must never be paid twice. A duplicate create (double-click, client
+    # retry after a timeout) is refused with 409 and moves no additional sats.
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    paid = _stub_lightning(monkeypatch)
+    body = {
+        "team_id": str(team_id), "total_sats": 210,
+        "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
+    }
+
+    first = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json=body)
+    assert first.status_code == 201, first.text
+    paid_after_first = len(paid)
+
+    second = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json=body)
+    assert second.status_code == 409, second.text
+    assert len(paid) == paid_after_first  # no second round of payments
 
 
 def test_payout_422_when_member_missing_address(client, auth_headers):

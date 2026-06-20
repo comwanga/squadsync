@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
@@ -37,6 +38,16 @@ def create_payout(
     if not team:
         raise HTTPException(status_code=404, detail="Team not found in this allocation")
 
+    # Idempotency: refuse a second payout for a team that already has one, so a
+    # double-click or a client retry after a timeout can never pay winners twice.
+    if db.query(Payout).filter(
+        Payout.allocation_id == allocation_id, Payout.team_label == team.name
+    ).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This team has already been paid; retry the existing payout instead.",
+        )
+
     # Pre-flight: split + verify every member has an address BEFORE spending anything.
     try:
         splits = payout_service.preflight(db, team.id, req.total_sats, req.addresses)
@@ -46,7 +57,16 @@ def create_payout(
     payout = Payout(event_id=allocation.event_id, allocation_id=allocation_id,
                     team_label=team.name, total_sats=req.total_sats, status="pending")
     db.add(payout)
-    db.flush()
+    # The unique (allocation_id, team_label) constraint is the race backstop: if a
+    # concurrent request inserted first, this flush raises before any sats move.
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This team has already been paid; retry the existing payout instead.",
+        )
     payout = payout_service.execute_payout(db, payout, splits, req.nwc)
     return _payout_out(db, payout)
 
