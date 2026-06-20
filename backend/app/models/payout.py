@@ -26,7 +26,7 @@ class PayoutItem(Base):
     participant_id = Column(Uuid(as_uuid=True), ForeignKey("participants.id"), nullable=False)
     lightning_address = Column(String, nullable=True)
     amount_sats = Column(Integer, nullable=False)
-    # pending | paid | failed
+    # pending | paid | failed | unverified (wallet preimage did not match the invoice)
     status = Column(String, nullable=False, default="pending")
     bolt11 = Column(String, nullable=True)
     preimage = Column(String, nullable=True)

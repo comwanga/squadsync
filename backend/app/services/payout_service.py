@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.payout import Payout, PayoutItem
 from app.models.participant import Participant
 from app.models.team import Team, TeamMember
-from app.services import lnurl_service, nwc_service
+from app.services import bolt11, lnurl_service, nwc_service
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +78,19 @@ def execute_payout(
         db.flush()
         try:
             params = lnurl_service.resolve_lnurl(address)
-            bolt11 = lnurl_service.request_invoice(params, amount_sats)
-            item.bolt11 = bolt11
-            item.preimage = nwc_service.pay_invoice(nwc, bolt11)
-            item.status = "paid"
-            paid += 1
+            invoice = lnurl_service.request_invoice(params, amount_sats)
+            item.bolt11 = invoice
+            item.preimage = nwc_service.pay_invoice(nwc, invoice)
+            if bolt11.preimage_matches(invoice, item.preimage):
+                item.status = "paid"
+                paid += 1
+            else:
+                # The wallet returned a preimage that does not hash to the invoice's
+                # payment hash — we have no proof the sats moved, so never mark it paid.
+                # Left as a terminal status (retry skips it) to avoid re-sending money
+                # that may in fact have left the wallet.
+                item.status = "unverified"
+                item.error = "wallet returned a preimage that does not match the invoice"
         except Exception as exc:  # noqa: BLE001 — record + continue
             item.status = "failed"
             item.error = str(exc)
@@ -105,10 +113,14 @@ def retry_failed(db: Session, payout: Payout, nwc: str) -> Payout:
             continue
         try:
             params = lnurl_service.resolve_lnurl(item.lightning_address)
-            bolt11 = lnurl_service.request_invoice(params, item.amount_sats)
-            item.bolt11 = bolt11
-            item.preimage = nwc_service.pay_invoice(nwc, bolt11)
-            item.status, item.error = "paid", None
+            invoice = lnurl_service.request_invoice(params, item.amount_sats)
+            item.bolt11 = invoice
+            item.preimage = nwc_service.pay_invoice(nwc, invoice)
+            if bolt11.preimage_matches(invoice, item.preimage):
+                item.status, item.error = "paid", None
+            else:
+                item.status = "unverified"
+                item.error = "wallet returned a preimage that does not match the invoice"
         except Exception as exc:  # noqa: BLE001
             item.error = str(exc)
             logger.warning("payout retry item %s failed: %s", item.id, exc)
