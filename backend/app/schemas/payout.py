@@ -6,10 +6,8 @@ from pydantic import BaseModel, Field
 class PayoutCreate(BaseModel):
     team_id: UUID
     total_sats: int = Field(gt=0)
-    # Self-custody: when omitted, the server creates pending items and the browser
-    # performs the NIP-47 send, reporting each result back. The legacy server-side
-    # path (server holds the credential) runs only when `nwc` is supplied.
-    nwc: Optional[str] = None
+    # Self-custody: the server never receives a spend credential. It creates pending
+    # items and the browser performs the NIP-47 send, reporting each result back.
     # Optional per-member address overrides: {str(participant_id): "name@domain"}.
     # Lets the organizer fill/correct a missing address in the payout modal.
     addresses: Optional[dict[str, str]] = None

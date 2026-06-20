@@ -11,7 +11,7 @@ from app.models.payout import Payout, PayoutItem
 from app.models.team import Team
 from app.models.user import User
 from app.schemas.payout import (
-    PayoutCreate, PayoutRetry, PayoutOut, PayoutItemResult, PayoutItemFailed,
+    PayoutCreate, PayoutOut, PayoutItemResult, PayoutItemFailed,
 )
 from app.services.event_service import assert_allocation_organizer
 from app.services import payout_service
@@ -78,12 +78,9 @@ def create_payout(
             status_code=status.HTTP_409_CONFLICT,
             detail="This team has already been paid; retry the existing payout instead.",
         )
-    if req.nwc:
-        # Legacy server-side path (deprecated): server holds the credential and pays.
-        payout = payout_service.execute_payout(db, payout, splits, req.nwc)
-    else:
-        # Self-custody path: create pending items; the browser pays and reports back.
-        payout = payout_service.create_pending(db, payout, splits)
+    # Self-custody: create pending items; the browser pays and reports each result.
+    # The server never receives a spend credential.
+    payout = payout_service.create_pending(db, payout, splits)
     return _payout_out(db, payout)
 
 
@@ -126,19 +123,4 @@ def report_item_failed(
     """Self-custody: the browser reports a send that produced no preimage."""
     payout, item = _get_item(db, payout_id, item_id, current_user.id)
     payout = payout_service.record_item_failed(db, payout, item, req.error)
-    return _payout_out(db, payout)
-
-
-@router.post("/payouts/{payout_id}/retry", response_model=PayoutOut)
-def retry_payout(
-    payout_id: UUID,
-    req: PayoutRetry,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    payout = db.query(Payout).filter(Payout.id == payout_id).first()
-    if not payout:
-        raise HTTPException(status_code=404, detail="Payout not found")
-    assert_allocation_organizer(db, payout.allocation_id, current_user.id)
-    payout = payout_service.retry_failed(db, payout, req.nwc, req.addresses)
     return _payout_out(db, payout)
