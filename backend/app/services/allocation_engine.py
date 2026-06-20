@@ -91,6 +91,7 @@ def move_participant(db: Session, allocation: Allocation, participant_id: UUID, 
         team.skill_score = round(skill_score, 1)
         team.role_balance_score = round(role_balance_score, 1)
         team.fairness_score = round(fairness_score, 1)
+        team.rationale = None
     db.commit()
 
 
