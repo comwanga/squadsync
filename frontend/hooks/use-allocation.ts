@@ -106,20 +106,33 @@ export interface Payout {
 export async function createPayout(
   token: string,
   allocationId: string,
-  body: { team_id: string; total_sats: number; nwc: string; addresses?: Record<string, string> }
+  body: { team_id: string; total_sats: number; addresses?: Record<string, string> }
 ) {
+  // Self-custody: no nwc is sent. The server returns pending items for the browser to pay.
   return fetchAPI<Payout>(`/api/v1/allocations/${allocationId}/payouts`, { method: "POST", body, token });
 }
 
-export async function retryPayout(
+export async function reportPayoutItemResult(
   token: string,
   payoutId: string,
-  nwc: string,
-  addresses?: Record<string, string>
+  itemId: string,
+  bolt11: string,
+  preimage: string
 ) {
-  return fetchAPI<Payout>(`/api/v1/allocations/payouts/${payoutId}/retry`, {
-    method: "POST",
-    body: { nwc, ...(addresses && Object.keys(addresses).length > 0 ? { addresses } : {}) },
-    token,
-  });
+  return fetchAPI<Payout>(
+    `/api/v1/allocations/payouts/${payoutId}/items/${itemId}/result`,
+    { method: "POST", body: { bolt11, preimage }, token }
+  );
+}
+
+export async function reportPayoutItemFailed(
+  token: string,
+  payoutId: string,
+  itemId: string,
+  error: string
+) {
+  return fetchAPI<Payout>(
+    `/api/v1/allocations/payouts/${payoutId}/items/${itemId}/failed`,
+    { method: "POST", body: { error }, token }
+  );
 }

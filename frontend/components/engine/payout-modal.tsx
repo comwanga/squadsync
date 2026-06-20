@@ -18,10 +18,13 @@ import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api";
 import {
   createPayout,
-  retryPayout,
+  reportPayoutItemResult,
+  reportPayoutItemFailed,
   type Payout,
+  type PayoutItem,
   type Team,
 } from "@/hooks/use-allocation";
+import { resolveInvoice, payWithNwc } from "@/lib/lightning";
 
 interface PayoutModalProps {
   team: Team;
@@ -49,24 +52,46 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     onOpenChange(o);
   };
 
+  // Pay each item in the browser: resolve an invoice, send via NWC (the credential
+  // never leaves this client), then report the result for the server to verify.
+  const payItems = async (current: Payout, items: PayoutItem[]): Promise<Payout> => {
+    const token = session!.accessToken!;
+    for (const item of items) {
+      const addr = addresses[item.participant_id]?.trim() || item.lightning_address;
+      try {
+        if (!addr) throw new Error("missing lightning address");
+        const invoice = await resolveInvoice(addr, item.amount_sats);
+        const preimage = await payWithNwc(nwc, invoice);
+        current = await reportPayoutItemResult(token, current.id, item.id, invoice, preimage);
+      } catch (e) {
+        current = await reportPayoutItemFailed(
+          token, current.id, item.id, e instanceof Error ? e.message : String(e)
+        );
+      }
+      setPayout(current); // live per-member status
+    }
+    return current;
+  };
+
   const handleSend = async () => {
     if (!session?.accessToken) return;
     setSending(true);
     try {
-      const nonEmptyAddresses: Record<string, string> = {};
+      const overrides: Record<string, string> = {};
       for (const [id, addr] of Object.entries(addresses)) {
-        if (addr.trim()) nonEmptyAddresses[id] = addr.trim();
+        if (addr.trim()) overrides[id] = addr.trim();
       }
-      const result = await createPayout(session.accessToken, allocationId, {
+      let current = await createPayout(session.accessToken, allocationId, {
         team_id: team.id,
         total_sats: totalSats,
-        nwc,
-        addresses: Object.keys(nonEmptyAddresses).length > 0 ? nonEmptyAddresses : undefined,
+        addresses: Object.keys(overrides).length > 0 ? overrides : undefined,
       });
-      setPayout(result);
-      toast.success("Payout sent!");
+      setPayout(current);
+      current = await payItems(current, current.items);
+      if (current.status === "complete") toast.success("Payout complete");
+      else toast.error("Some payments need attention");
     } catch (err: unknown) {
-      if (err instanceof ApiError && err.status === 422) {
+      if (err instanceof ApiError && (err.status === 422 || err.status === 409)) {
         toast.error(err.message);
       } else {
         toast.error(err instanceof Error ? err.message : "Payout failed");
@@ -80,13 +105,10 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     if (!session?.accessToken || !payout) return;
     setSending(true);
     try {
-      const corrected: Record<string, string> = {};
-      for (const [id, addr] of Object.entries(addresses)) {
-        if (addr.trim()) corrected[id] = addr.trim();
-      }
-      const result = await retryPayout(session.accessToken, payout.id, nwc, corrected);
-      setPayout(result);
-      toast.success("Retry complete");
+      const failed = payout.items.filter((i) => i.status === "failed");
+      const current = await payItems(payout, failed);
+      if (current.status === "complete") toast.success("Retry complete");
+      else toast.error("Some payments still need attention");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Retry failed");
     } finally {
@@ -136,7 +158,8 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
               disabled={!!payout}
             />
             <p className="text-xs text-muted-foreground">
-              Paste an NWC string from Alby, Coinos, or Alby Hub. Used once to send — never stored.
+              Paste an NWC string from Alby, Coinos, or Alby Hub. The payment is signed in your
+              browser — the credential never reaches our server.
             </p>
           </div>
 
