@@ -16,6 +16,8 @@ def test_team_rationale_persists_json(db):
     db.refresh(team)
     assert team.rationale["title"] == "Build squad"
     assert team.rationale["gaps"] == ["limited outreach"]
+    assert team.rationale["summary"] == "Strong delivery."
+    assert team.rationale["strengths"] == ["2 advanced engineers"]
 
 
 def test_team_rationale_defaults_none(db):
