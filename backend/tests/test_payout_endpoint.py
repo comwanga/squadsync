@@ -94,6 +94,25 @@ def test_payout_unverified_when_preimage_mismatch(client, auth_headers, monkeypa
     assert all("preimage" in (i["error"] or "").lower() for i in body["items"])
 
 
+def test_payout_idempotent_second_call_rejected(client, auth_headers, monkeypatch):
+    # A team must never be paid twice. A duplicate create (double-click, client
+    # retry after a timeout) is refused with 409 and moves no additional sats.
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    paid = _stub_lightning(monkeypatch)
+    body = {
+        "team_id": str(team_id), "total_sats": 210,
+        "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
+    }
+
+    first = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json=body)
+    assert first.status_code == 201, first.text
+    paid_after_first = len(paid)
+
+    second = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json=body)
+    assert second.status_code == 409, second.text
+    assert len(paid) == paid_after_first  # no second round of payments
+
+
 def test_payout_422_when_member_missing_address(client, auth_headers):
     # No participant has an address, so any team triggers the pre-flight 422.
     _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=False)

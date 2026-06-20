@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Uuid
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Uuid, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -7,6 +7,12 @@ from app.core.database import Base
 
 class Payout(Base):
     __tablename__ = "payouts"
+    # One payout per team per allocation: the authoritative guard against paying
+    # a winning team twice (double-click, client retry). Re-attempts go through
+    # the retry endpoint, which reuses the existing payout's items.
+    __table_args__ = (
+        UniqueConstraint("allocation_id", "team_label", name="uq_payout_allocation_team"),
+    )
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(Uuid(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True)
