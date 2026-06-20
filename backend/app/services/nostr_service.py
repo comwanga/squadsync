@@ -22,26 +22,44 @@ logger = logging.getLogger(__name__)
 _BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 
+def _bech32_polymod(values: list[int]) -> int:
+    """BIP-173 checksum polymod over hrp-expansion + data (incl. checksum)."""
+    generator = (0x3B6A57B2, 0x26508E6D, 0x1EA119FA, 0x3D4233DD, 0x2A1462B3)
+    chk = 1
+    for value in values:
+        top = chk >> 25
+        chk = ((chk & 0x1FFFFFF) << 5) ^ value
+        for i in range(5):
+            chk ^= generator[i] if ((top >> i) & 1) else 0
+    return chk
+
+
+def _bech32_hrp_expand(hrp: str) -> list[int]:
+    return [ord(c) >> 5 for c in hrp] + [0] + [ord(c) & 31 for c in hrp]
+
+
 def bech32_decode(bech: str) -> tuple[str, bytes]:
     """Decode a bech32 `npub`/`nsec` to (hrp, 32-byte key).
 
-    Minimal decoder: splits on the last '1', drops the 6-char checksum, and
-    converts the 5-bit data groups to 8-bit bytes. Sufficient for npub/nsec.
+    Validates the BIP-173 checksum so a single mistyped character is rejected
+    rather than silently decoded to a different (wrong) key. Sufficient for
+    npub/nsec (bech32, not bech32m).
     """
     bech = bech.strip().lower()
     pos = bech.rfind("1")
-    if pos < 1:
+    if pos < 1 or pos + 7 > len(bech):  # need a non-empty hrp + 6-char checksum
         raise ValueError("invalid bech32 string")
     hrp = bech[:pos]
     try:
         data = [_BECH32_CHARSET.index(c) for c in bech[pos + 1:]]
     except ValueError as exc:
         raise ValueError("invalid bech32 character") from exc
-    data = data[:-6]  # drop checksum
+    if _bech32_polymod(_bech32_hrp_expand(hrp) + data) != 1:
+        raise ValueError("invalid bech32 checksum")
     acc = 0
     bits = 0
     out = bytearray()
-    for value in data:
+    for value in data[:-6]:  # drop the now-verified 6-char checksum
         acc = (acc << 5) | value
         bits += 5
         if bits >= 8:

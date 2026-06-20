@@ -38,7 +38,7 @@ def test_bech32_decode_npub_vector():
 
 def test_bech32_decode_nsec_vector():
     hrp, key = nostr_service.bech32_decode(
-        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9"
+        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5"
     )
     assert hrp == "nsec"
     assert key.hex() == "67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa"
@@ -95,7 +95,7 @@ def test_send_dm_returns_true_when_a_relay_accepts(monkeypatch):
     monkeypatch.setattr(
         nostr_service.settings,
         "SQUADSYNC_NSEC",
-        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9",
+        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5",
         raising=False,
     )
     monkeypatch.setattr(nostr_service.settings, "NOSTR_RELAYS", "wss://relay.test", raising=False)
@@ -119,7 +119,7 @@ def test_send_dm_swallows_publish_errors(monkeypatch):
     monkeypatch.setattr(
         nostr_service.settings,
         "SQUADSYNC_NSEC",
-        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9",
+        "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5",
         raising=False,
     )
 
@@ -139,9 +139,25 @@ def test_validate_npub_accepts_valid():
 
 def test_validate_npub_rejects_nsec():
     with pytest.raises(ValueError):
-        nostr_service.validate_npub("nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe9")
+        nostr_service.validate_npub("nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5")
 
 
 def test_validate_npub_rejects_garbage():
     with pytest.raises(ValueError):
         nostr_service.validate_npub("not-an-npub")
+
+
+def test_bech32_decode_rejects_corrupted_checksum():
+    # Flip one data character of a valid npub; the bech32 checksum must catch it
+    # instead of silently decoding to a different (wrong) 32-byte key.
+    with pytest.raises(ValueError):
+        nostr_service.bech32_decode(
+            "npub1q0cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
+        )
+
+
+def test_validate_npub_rejects_corrupted_checksum():
+    with pytest.raises(ValueError):
+        nostr_service.validate_npub(
+            "npub1q0cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
+        )
