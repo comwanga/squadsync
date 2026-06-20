@@ -23,6 +23,7 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
   const [publishing, setPublishing] = useState(false);
   const [working, setWorking] = useState(false);  // a move or regenerate is in flight
   const [payoutTeam, setPayoutTeam] = useState<Team | null>(null);
+  const [explaining, setExplaining] = useState(false);
   const warningEntries = Object.entries(allocation.constraint_warnings);
   const note = normalizationNote(allocation.ai_normalized, allocation.auto_normalized);
   const isDraft = allocation.status === "draft";
@@ -68,8 +69,6 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
       setWorking(false);
     }
   };
-
-  const [explaining, setExplaining] = useState(false);
 
   const handleExplain = async () => {
     if (!session?.accessToken || explaining) return;

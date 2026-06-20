@@ -14,6 +14,7 @@ const team: Team = {
 describe("TeamCard rationale", () => {
   it("renders the rationale summary and strengths/gaps when present", () => {
     render(<TeamCard team={team} />);
+    expect(screen.getByText("Build squad")).toBeInTheDocument();
     expect(screen.getByText("Strong delivery.")).toBeInTheDocument();
     expect(screen.getByText("2 advanced engineers")).toBeInTheDocument();
     expect(screen.getByText("limited outreach")).toBeInTheDocument();
