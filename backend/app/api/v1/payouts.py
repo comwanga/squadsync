@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import settings
 from app.models.allocation import Allocation
 from app.models.payout import Payout, PayoutItem
 from app.models.team import Team
@@ -37,6 +38,14 @@ def create_payout(
     team = db.query(Team).filter(Team.id == req.team_id, Team.allocation_id == allocation_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found in this allocation")
+
+    # Spend ceiling: reject an implausibly large amount before touching a wallet.
+    if req.total_sats > settings.PAYOUT_MAX_SATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"total_sats {req.total_sats} exceeds the payout ceiling "
+                   f"of {settings.PAYOUT_MAX_SATS} sats",
+        )
 
     # Idempotency: refuse a second payout for a team that already has one, so a
     # double-click or a client retry after a timeout can never pay winners twice.

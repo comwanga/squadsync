@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # request URL FastAPI sees (http, internal host) differs from the signed URL.
     # When unset, the live request URL is used (correct for local/dev).
     PUBLIC_API_URL: str | None = None
+    # Hard ceiling on a single team payout (sats). A safety net against a
+    # fat-finger (extra zeros) — the request is refused before anything is sent.
+    PAYOUT_MAX_SATS: int = 5_000_000
     # Optional: enables AI normalization of free-text "Other" strengths.
     # When unset, allocation falls back to a deterministic slug per Other entry.
     ANTHROPIC_API_KEY: str | None = None

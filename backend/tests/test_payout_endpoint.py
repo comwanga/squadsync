@@ -113,6 +113,23 @@ def test_payout_idempotent_second_call_rejected(client, auth_headers, monkeypatc
     assert len(paid) == paid_after_first  # no second round of payments
 
 
+def test_payout_rejects_amount_over_ceiling(client, auth_headers, monkeypatch):
+    # A fat-finger (extra zeros) must be refused before any sats are sent.
+    from app.core.config import settings as app_settings
+    monkeypatch.setattr(app_settings, "PAYOUT_MAX_SATS", 500, raising=False)
+    _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=True)
+    paid = _stub_lightning(monkeypatch)
+
+    res = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
+        "team_id": str(team_id), "total_sats": 501,
+        "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
+    })
+
+    assert res.status_code == 422, res.text
+    assert "exceeds" in res.text.lower()
+    assert paid == []  # nothing sent
+
+
 def test_payout_422_when_member_missing_address(client, auth_headers):
     # No participant has an address, so any team triggers the pre-flight 422.
     _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=False)
