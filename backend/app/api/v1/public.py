@@ -50,6 +50,7 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
             name=team.name,
             fairness_score=team.fairness_score,
             members=[PublicTeamMember.model_validate(m) for m in members],
+            rationale=team.rationale,
         ))
     payouts = []
     for p in db.query(Payout).filter(Payout.allocation_id == allocation.id).all():

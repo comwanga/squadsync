@@ -10,6 +10,23 @@ def test_rationale_requires_api_key_returns_400(client, auth_headers, monkeypatc
     assert "anthropic" in res.text.lower()
 
 
+def test_rationale_generates_and_persists(client, auth_headers, monkeypatch):
+    from app.core.config import settings
+    from app.services import rationale_service
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "k", raising=False)
+    monkeypatch.setattr(rationale_service, "_classify", lambda event, payloads: {
+        p["id"]: {"title": "Squad", "summary": "Balanced.", "strengths": ["a"], "gaps": ["b"]}
+        for p in payloads
+    })
+    _, allocation_id, _team_id, _members = _setup_team(client, auth_headers, all_have_addresses=False)
+    res = client.post(f"/api/v1/allocations/{allocation_id}/rationale", headers=auth_headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert all(r["title"] == "Squad" for r in body.values())
+    teams = client.get(f"/api/v1/allocations/{allocation_id}/teams", headers=auth_headers).json()
+    assert all(t["rationale"]["summary"] == "Balanced." for t in teams)
+
+
 def test_rationale_requires_organizer(client, auth_headers, monkeypatch):
     from app.core.config import settings
     monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "k", raising=False)

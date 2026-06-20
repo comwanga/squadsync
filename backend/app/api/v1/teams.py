@@ -36,6 +36,7 @@ def list_teams(allocation_id: UUID, db: Session = Depends(get_db), current_user=
             skill_score=team.skill_score,
             role_balance_score=team.role_balance_score,
             members=[TeamMemberOut.model_validate(m) for m in members],
+            rationale=team.rationale,
         ))
     return result
 
@@ -60,6 +61,7 @@ def get_team(allocation_id: UUID, team_id: UUID, db: Session = Depends(get_db), 
         skill_score=team.skill_score,
         role_balance_score=team.role_balance_score,
         members=[TeamMemberOut.model_validate(m) for m in members],
+        rationale=team.rationale,
     )
 
 

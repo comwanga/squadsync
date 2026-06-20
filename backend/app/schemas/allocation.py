@@ -38,6 +38,7 @@ class TeamOut(BaseModel):
     skill_score: Optional[float]
     role_balance_score: Optional[float]
     members: list[TeamMemberOut] = []
+    rationale: Optional[dict] = None
 
     model_config = {"from_attributes": True}
 
@@ -71,6 +72,7 @@ class PublicTeam(BaseModel):
     name: str
     fairness_score: Optional[float]
     members: list[PublicTeamMember] = []
+    rationale: Optional[dict] = None
 
 
 class PublicPayoutSummary(BaseModel):
