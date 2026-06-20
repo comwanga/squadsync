@@ -10,7 +10,9 @@ from app.models.allocation import Allocation
 from app.models.payout import Payout, PayoutItem
 from app.models.team import Team
 from app.models.user import User
-from app.schemas.payout import PayoutCreate, PayoutRetry, PayoutOut
+from app.schemas.payout import (
+    PayoutCreate, PayoutRetry, PayoutOut, PayoutItemResult, PayoutItemFailed,
+)
 from app.services.event_service import assert_allocation_organizer
 from app.services import payout_service
 
@@ -76,7 +78,54 @@ def create_payout(
             status_code=status.HTTP_409_CONFLICT,
             detail="This team has already been paid; retry the existing payout instead.",
         )
-    payout = payout_service.execute_payout(db, payout, splits, req.nwc)
+    if req.nwc:
+        # Legacy server-side path (deprecated): server holds the credential and pays.
+        payout = payout_service.execute_payout(db, payout, splits, req.nwc)
+    else:
+        # Self-custody path: create pending items; the browser pays and reports back.
+        payout = payout_service.create_pending(db, payout, splits)
+    return _payout_out(db, payout)
+
+
+def _get_item(db: Session, payout_id: UUID, item_id: UUID, user_id: UUID) -> tuple[Payout, PayoutItem]:
+    """Load a payout + one of its items, asserting the caller is the organizer."""
+    payout = db.query(Payout).filter(Payout.id == payout_id).first()
+    if not payout:
+        raise HTTPException(status_code=404, detail="Payout not found")
+    assert_allocation_organizer(db, payout.allocation_id, user_id)
+    item = db.query(PayoutItem).filter(
+        PayoutItem.id == item_id, PayoutItem.payout_id == payout_id
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Payout item not found")
+    return payout, item
+
+
+@router.post("/payouts/{payout_id}/items/{item_id}/result", response_model=PayoutOut)
+def report_item_result(
+    payout_id: UUID,
+    item_id: UUID,
+    req: PayoutItemResult,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Self-custody: the browser reports a completed send; the server verifies the preimage."""
+    payout, item = _get_item(db, payout_id, item_id, current_user.id)
+    payout = payout_service.record_item_result(db, payout, item, req.bolt11, req.preimage)
+    return _payout_out(db, payout)
+
+
+@router.post("/payouts/{payout_id}/items/{item_id}/failed", response_model=PayoutOut)
+def report_item_failed(
+    payout_id: UUID,
+    item_id: UUID,
+    req: PayoutItemFailed,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Self-custody: the browser reports a send that produced no preimage."""
+    payout, item = _get_item(db, payout_id, item_id, current_user.id)
+    payout = payout_service.record_item_failed(db, payout, item, req.error)
     return _payout_out(db, payout)
 
 

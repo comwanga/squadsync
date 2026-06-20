@@ -66,6 +66,70 @@ def preflight(
     return [(m, addr, amount) for (m, addr), (_, amount) in zip(resolved, amounts)]
 
 
+def _rollup_status(items: list[PayoutItem]) -> str:
+    """Derive a payout's status from its items.
+
+    complete: every item paid. pending: nothing paid yet and some still pending.
+    partial: some paid with others still outstanding or terminally not-paid.
+    failed: all items resolved and none paid.
+    """
+    n = len(items)
+    paid = sum(1 for i in items if i.status == "paid")
+    pending = any(i.status == "pending" for i in items)
+    if n and paid == n:
+        return "complete"
+    if pending:
+        return "partial" if paid else "pending"
+    return "partial" if paid else "failed"
+
+
+def create_pending(
+    db: Session, payout: Payout, splits: list[tuple[Participant, str, int]],
+) -> Payout:
+    """Self-custody path: persist pending items (no network). The browser pays them."""
+    for participant, address, amount_sats in splits:
+        db.add(PayoutItem(payout_id=payout.id, participant_id=participant.id,
+                          lightning_address=address, amount_sats=amount_sats, status="pending"))
+    payout.status = "pending"
+    db.commit()
+    db.refresh(payout)
+    return payout
+
+
+def record_item_result(
+    db: Session, payout: Payout, item: PayoutItem, bolt11_str: str, preimage: str,
+) -> Payout:
+    """Record a browser-performed send, verifying its preimage before marking paid.
+
+    Idempotent on an already-paid item (a client retry must not re-count it).
+    """
+    if item.status != "paid":
+        item.bolt11 = bolt11_str
+        item.preimage = preimage
+        if bolt11.preimage_matches(bolt11_str, preimage):
+            item.status, item.error = "paid", None
+        else:
+            item.status = "unverified"
+            item.error = "wallet returned a preimage that does not match the invoice"
+    items = db.query(PayoutItem).filter(PayoutItem.payout_id == payout.id).all()
+    payout.status = _rollup_status(items)
+    db.commit()
+    db.refresh(payout)
+    return payout
+
+
+def record_item_failed(db: Session, payout: Payout, item: PayoutItem, error: str) -> Payout:
+    """Record that a browser send for one item failed (no preimage produced)."""
+    if item.status != "paid":
+        item.status = "failed"
+        item.error = error
+    items = db.query(PayoutItem).filter(PayoutItem.payout_id == payout.id).all()
+    payout.status = _rollup_status(items)
+    db.commit()
+    db.refresh(payout)
+    return payout
+
+
 def execute_payout(
     db: Session, payout: Payout, splits: list[tuple[Participant, str, int]], nwc: str,
 ) -> Payout:
