@@ -132,6 +132,8 @@ def generate(db: Session, allocation: Allocation) -> dict[str, dict]:
     if not settings.ANTHROPIC_API_KEY:
         raise RationaleUnavailable("AI rationale requires ANTHROPIC_API_KEY")
     event = db.query(Event).filter(Event.id == allocation.event_id).first()
+    if event is None:
+        raise RationaleUnavailable("event not found for allocation")
     payloads = _team_payloads(db, allocation)
 
     mapping: dict[str, dict] = {}

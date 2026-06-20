@@ -1,3 +1,10 @@
+import uuid
+import pytest
+from app.models.allocation import Allocation
+from app.models.event import Event
+from app.models.participant import Participant
+from app.models.team import Team, TeamMember
+from app.models.user import User
 from app.services import rationale_service as rat
 
 
@@ -56,15 +63,6 @@ def test_parse_rationales_tolerates_omitted_team():
     assert rat._parse_rationales([Block()]) == {}
 
 
-import uuid
-import pytest
-from app.models.allocation import Allocation
-from app.models.event import Event
-from app.models.participant import Participant
-from app.models.team import Team, TeamMember
-from app.models.user import User
-
-
 def _alloc_with_team(db):
     u = User(pubkey="c" * 64); db.add(u); db.commit()
     e = Event(owner_id=u.id, title="Hack", description="d", team_count=1,
@@ -98,3 +96,15 @@ def test_generate_without_key_raises(db, monkeypatch):
     monkeypatch.setattr(rat.settings, "ANTHROPIC_API_KEY", None)
     with pytest.raises(rat.RationaleUnavailable):
         rat.generate(db, alloc)
+
+
+def test_generate_swallows_classify_failure(db, monkeypatch):
+    _e, alloc, _team = _alloc_with_team(db)
+    monkeypatch.setattr(rat.settings, "ANTHROPIC_API_KEY", "k")
+
+    def _boom(event, payloads):
+        raise RuntimeError("model down")
+
+    monkeypatch.setattr(rat, "_classify", _boom)
+    # best-effort: returns an empty mapping and commits without raising
+    assert rat.generate(db, alloc) == {}
