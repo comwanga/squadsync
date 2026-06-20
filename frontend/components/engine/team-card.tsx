@@ -70,6 +70,23 @@ export function TeamCard({
           ))}
         </div>
 
+        {team.rationale && (
+          <div className="rounded-md bg-violet-50 border border-violet-100 p-2 space-y-1">
+            <p className="text-xs font-semibold text-violet-900">{team.rationale.title}</p>
+            <p className="text-xs text-violet-800">{team.rationale.summary}</p>
+            {team.rationale.strengths.length > 0 && (
+              <ul className="text-xs text-violet-700 list-disc list-inside">
+                {team.rationale.strengths.map((s, i) => <li key={`s-${i}`}>{s}</li>)}
+              </ul>
+            )}
+            {team.rationale.gaps.length > 0 && (
+              <ul className="text-xs text-amber-700 list-disc list-inside">
+                {team.rationale.gaps.map((g, i) => <li key={`g-${i}`}>{g}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+
         <div className="space-y-1">
           {[
             { label: "Skill", value: team.skill_score },

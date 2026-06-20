@@ -19,6 +19,13 @@ export interface TeamMember {
   composite_score?: number;
 }
 
+export interface TeamRationale {
+  title: string;
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -26,6 +33,7 @@ export interface Team {
   skill_score?: number;
   role_balance_score?: number;
   members: TeamMember[];
+  rationale?: TeamRationale | null;
 }
 
 export interface Allocation {
@@ -134,5 +142,12 @@ export async function reportPayoutItemFailed(
   return fetchAPI<Payout>(
     `/api/v1/allocations/payouts/${payoutId}/items/${itemId}/failed`,
     { method: "POST", body: { error }, token }
+  );
+}
+
+export async function generateRationales(token: string, allocationId: string) {
+  return fetchAPI<Record<string, TeamRationale>>(
+    `/api/v1/allocations/${allocationId}/rationale`,
+    { method: "POST", token }
   );
 }
