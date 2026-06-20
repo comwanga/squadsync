@@ -80,7 +80,11 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     if (!session?.accessToken || !payout) return;
     setSending(true);
     try {
-      const result = await retryPayout(session.accessToken, payout.id, nwc);
+      const corrected: Record<string, string> = {};
+      for (const [id, addr] of Object.entries(addresses)) {
+        if (addr.trim()) corrected[id] = addr.trim();
+      }
+      const result = await retryPayout(session.accessToken, payout.id, nwc, corrected);
       setPayout(result);
       toast.success("Retry complete");
     } catch (err: unknown) {
@@ -156,7 +160,8 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                         setAddresses(prev => ({ ...prev, [member.id]: e.target.value }))
                       }
                       className="h-7 text-xs"
-                      disabled={!!payout}
+                      // Re-enable for correction when items failed and can be retried.
+                      disabled={!!payout && !hasFailedItems}
                     />
                   </div>
                 );

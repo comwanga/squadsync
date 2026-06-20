@@ -14,6 +14,10 @@ class PayoutCreate(BaseModel):
 
 class PayoutRetry(BaseModel):
     nwc: str = Field(min_length=1)
+    # Optional per-member address corrections applied to failed items before retry:
+    # {str(participant_id): "name@domain"}. Lets an organizer recover a payout that
+    # failed because an address was wrong, without creating a new payout.
+    addresses: Optional[dict[str, str]] = None
 
 
 class PayoutItemOut(BaseModel):

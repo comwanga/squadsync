@@ -91,5 +91,5 @@ def retry_payout(
     if not payout:
         raise HTTPException(status_code=404, detail="Payout not found")
     assert_allocation_organizer(db, payout.allocation_id, current_user.id)
-    payout = payout_service.retry_failed(db, payout, req.nwc)
+    payout = payout_service.retry_failed(db, payout, req.nwc, req.addresses)
     return _payout_out(db, payout)

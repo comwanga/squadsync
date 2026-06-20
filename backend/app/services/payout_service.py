@@ -105,12 +105,23 @@ def execute_payout(
     return payout
 
 
-def retry_failed(db: Session, payout: Payout, nwc: str) -> Payout:
-    """Retry only the failed items of an existing payout."""
+def retry_failed(
+    db: Session, payout: Payout, nwc: str, overrides: dict[str, str] | None = None,
+) -> Payout:
+    """Retry only the failed items of an existing payout.
+
+    `overrides` maps `str(participant_id) -> lightning_address` and corrects a bad
+    address before the retry, so a payout that failed purely on addresses can be
+    recovered without creating a new one.
+    """
+    overrides = overrides or {}
     items = db.query(PayoutItem).filter(PayoutItem.payout_id == payout.id).all()
     for item in items:
         if item.status != "failed":
             continue
+        corrected = overrides.get(str(item.participant_id))
+        if corrected:
+            item.lightning_address = corrected
         try:
             params = lnurl_service.resolve_lnurl(item.lightning_address)
             invoice = lnurl_service.request_invoice(params, item.amount_sats)

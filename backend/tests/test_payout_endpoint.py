@@ -130,6 +130,37 @@ def test_payout_rejects_amount_over_ceiling(client, auth_headers, monkeypatch):
     assert paid == []  # nothing sent
 
 
+def test_retry_with_corrected_addresses_recovers(client, auth_headers, monkeypatch):
+    # A payout that fully failed (bad addresses) must be recoverable: retry with
+    # corrected addresses pays the team without needing a brand-new payout.
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    from app.services import lnurl_service
+
+    def _boom(addr):
+        raise lnurl_service.LnurlError("unresolvable")
+
+    monkeypatch.setattr(lnurl_service, "resolve_lnurl", _boom)
+    first = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
+        "team_id": str(team_id), "total_sats": 210,
+        "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
+    })
+    assert first.status_code == 201
+    payout_id = first.json()["id"]
+    assert first.json()["status"] == "failed"
+
+    # Fix the network and supply corrected addresses on retry.
+    _stub_lightning(monkeypatch)
+    corrected = {m["id"]: f"fixed-{m['name']}@getalby.com" for m in members}
+    res = client.post(f"/api/v1/allocations/payouts/{payout_id}/retry", headers=auth_headers, json={
+        "nwc": "nostr+walletconnect://abc?relay=wss://r&secret=00",
+        "addresses": corrected,
+    })
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["status"] == "complete"
+    assert all(i["lightning_address"].startswith("fixed-") for i in body["items"])
+
+
 def test_payout_422_when_member_missing_address(client, auth_headers):
     # No participant has an address, so any team triggers the pre-flight 422.
     _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=False)

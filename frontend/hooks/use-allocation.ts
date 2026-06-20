@@ -111,6 +111,15 @@ export async function createPayout(
   return fetchAPI<Payout>(`/api/v1/allocations/${allocationId}/payouts`, { method: "POST", body, token });
 }
 
-export async function retryPayout(token: string, payoutId: string, nwc: string) {
-  return fetchAPI<Payout>(`/api/v1/allocations/payouts/${payoutId}/retry`, { method: "POST", body: { nwc }, token });
+export async function retryPayout(
+  token: string,
+  payoutId: string,
+  nwc: string,
+  addresses?: Record<string, string>
+) {
+  return fetchAPI<Payout>(`/api/v1/allocations/payouts/${payoutId}/retry`, {
+    method: "POST",
+    body: { nwc, ...(addresses && Object.keys(addresses).length > 0 ? { addresses } : {}) },
+    token,
+  });
 }
