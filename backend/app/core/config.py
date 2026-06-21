@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     # When unset, allocation falls back to a deterministic slug per Other entry.
     ANTHROPIC_API_KEY: str | None = None
     CATEGORIZATION_MODEL: str = "claude-haiku-4-5-20251001"
+    # Model for AI team rationales (separate from categorization so it can be tuned).
+    RATIONALE_MODEL: str = "claude-haiku-4-5-20251001"
 
     # --- Nostr DM sender (all optional; unset → DM sending is a no-op) ---
     # Dedicated *bot* secret key (bech32 `nsec1…`) used ONLY to sign/encrypt

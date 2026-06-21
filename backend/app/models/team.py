@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, ForeignKey, Uuid
+from sqlalchemy import Column, String, Float, ForeignKey, Uuid, JSON
 
 from app.core.database import Base
 
@@ -13,6 +13,8 @@ class Team(Base):
     fairness_score = Column(Float, nullable=True)
     skill_score = Column(Float, nullable=True)
     role_balance_score = Column(Float, nullable=True)
+    # Cached AI explanation: {"title","summary","strengths":[...],"gaps":[...]} or None.
+    rationale = Column(JSON, nullable=True)
 
 
 class TeamMember(Base):

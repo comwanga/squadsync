@@ -10,6 +10,7 @@ interface Team {
   name: string;
   fairness_score?: number;
   members: TeamMember[];
+  rationale?: { title: string; summary: string; strengths: string[]; gaps: string[] } | null;
 }
 interface PayoutSummary { team_label: string; total_sats: number; status: string; paid_count: number; member_count: number; }
 interface AllocationResult { id: string; status: string; teams: Team[]; payouts?: PayoutSummary[]; }
@@ -87,6 +88,22 @@ export default async function ResultsPage({ params }: { params: Promise<{ alloca
                         </li>
                       ))}
                     </ul>
+                    {team.rationale && (
+                      <div className="rounded-md bg-violet-50 border border-violet-100 p-3 mt-2 space-y-1">
+                        <p className="text-sm font-semibold text-violet-900">{team.rationale.title}</p>
+                        <p className="text-sm text-violet-800">{team.rationale.summary}</p>
+                        {team.rationale.strengths.length > 0 && (
+                          <ul className="text-xs text-violet-700 list-disc list-inside">
+                            {team.rationale.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                          </ul>
+                        )}
+                        {team.rationale.gaps.length > 0 && (
+                          <ul className="text-xs text-amber-700 list-disc list-inside">
+                            {team.rationale.gaps.map((g: string, i: number) => <li key={i}>{g}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

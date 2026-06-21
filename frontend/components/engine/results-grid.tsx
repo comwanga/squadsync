@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { AlertTriangle, Download, Link2, CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Download, Link2, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 import { TeamCard } from "./team-card";
 import { PayoutModal } from "./payout-modal";
-import { publishAllocation, moveMember, regenerateAllocation } from "@/hooks/use-allocation";
+import { publishAllocation, moveMember, regenerateAllocation, generateRationales } from "@/hooks/use-allocation";
 import { Button } from "@/components/ui/button";
 import type { Allocation, Team } from "@/hooks/use-allocation";
 import { normalizationNote } from "@/lib/allocation-notes";
@@ -23,6 +23,7 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
   const [publishing, setPublishing] = useState(false);
   const [working, setWorking] = useState(false);  // a move or regenerate is in flight
   const [payoutTeam, setPayoutTeam] = useState<Team | null>(null);
+  const [explaining, setExplaining] = useState(false);
   const warningEntries = Object.entries(allocation.constraint_warnings);
   const note = normalizationNote(allocation.ai_normalized, allocation.auto_normalized);
   const isDraft = allocation.status === "draft";
@@ -66,6 +67,21 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
       toast.error(err instanceof Error ? err.message : "Regenerate failed");
     } finally {
       setWorking(false);
+    }
+  };
+
+  const handleExplain = async () => {
+    if (!session?.accessToken || explaining) return;
+    setExplaining(true);
+    try {
+      const map = await generateRationales(session.accessToken, allocation.id);
+      const teams = allocation.teams.map(t => ({ ...t, rationale: map[t.id] ?? t.rationale }));
+      onChanged({ ...allocation, teams });
+      toast.success("Teams explained");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not explain teams");
+    } finally {
+      setExplaining(false);
     }
   };
 
@@ -143,6 +159,9 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
       )}
 
       <div className="flex flex-wrap gap-2 pt-2">
+        <Button variant="outline" onClick={handleExplain} disabled={explaining || working}>
+          <Sparkles className="mr-2 h-4 w-4" /> {explaining ? "Explaining…" : "Explain teams"}
+        </Button>
         {isDraft && (
           <Button variant="outline" onClick={handleRegenerate} disabled={working}>
             <RefreshCw className="mr-2 h-4 w-4" /> {working ? "Working…" : "Regenerate"}
