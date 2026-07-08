@@ -122,6 +122,36 @@ export interface PayoutPreflight {
   }>;
 }
 
+export interface RewardClaim {
+  id: string;
+  token: string;
+  allocation_id: string;
+  team_id: string;
+  participant_id: string;
+  name: string;
+  amount_sats: number;
+  lightning_address: string | null;
+  status: string;
+  expires_at: string;
+  claim_url: string;
+}
+
+export interface RewardClaimBatch {
+  team_id: string;
+  total_sats: number;
+  items: RewardClaim[];
+}
+
+export interface PublicRewardClaim {
+  token: string;
+  participant_name: string;
+  team_name: string;
+  amount_sats: number;
+  status: string;
+  expires_at: string;
+  lightning_address: string | null;
+}
+
 export async function preflightPayout(
   token: string,
   allocationId: string,
@@ -140,6 +170,28 @@ export async function createPayout(
 ) {
   // Self-custody: no nwc is sent. The server returns pending items for the browser to pay.
   return fetchAPI<Payout>(`/api/v1/allocations/${allocationId}/payouts`, { method: "POST", body, token });
+}
+
+export async function createRewardClaims(
+  token: string,
+  allocationId: string,
+  body: { team_id: string; total_sats: number }
+) {
+  return fetchAPI<RewardClaimBatch>(
+    `/api/v1/allocations/${allocationId}/reward-claims`,
+    { method: "POST", body, token }
+  );
+}
+
+export async function getRewardClaim(token: string) {
+  return fetchAPI<PublicRewardClaim>(`/api/v1/allocations/reward-claims/${token}`);
+}
+
+export async function submitRewardClaim(token: string, lightningAddress: string) {
+  return fetchAPI<PublicRewardClaim>(
+    `/api/v1/allocations/reward-claims/${token}`,
+    { method: "POST", body: { lightning_address: lightningAddress } }
+  );
 }
 
 export async function reportPayoutItemResult(

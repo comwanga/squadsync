@@ -56,6 +56,45 @@ class PayoutPreflightOut(BaseModel):
     items: list[PayoutPreflightItem]
 
 
+class RewardClaimCreate(BaseModel):
+    team_id: UUID
+    total_sats: int = Field(gt=0)
+
+
+class RewardClaimOut(BaseModel):
+    id: UUID
+    token: str
+    allocation_id: UUID
+    team_id: UUID
+    participant_id: UUID
+    name: str
+    amount_sats: int
+    lightning_address: Optional[str]
+    status: str
+    expires_at: str
+    claim_url: str
+
+
+class RewardClaimBatchOut(BaseModel):
+    team_id: UUID
+    total_sats: int
+    items: list[RewardClaimOut]
+
+
+class PublicRewardClaimOut(BaseModel):
+    token: str
+    participant_name: str
+    team_name: str
+    amount_sats: int
+    status: str
+    expires_at: str
+    lightning_address: Optional[str] = None
+
+
+class RewardClaimSubmit(BaseModel):
+    lightning_address: str = Field(min_length=3, max_length=255)
+
+
 class PayoutOut(BaseModel):
     id: UUID
     event_id: UUID

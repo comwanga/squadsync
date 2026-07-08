@@ -94,6 +94,50 @@ def test_payout_address_override_fills_missing(client, auth_headers):
     assert {i["lightning_address"] for i in body["items"]} == set(overrides.values())
 
 
+def test_reward_claim_qr_flow_supplies_address_for_instant_payout(client, auth_headers):
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=False)
+
+    claims_res = client.post(
+        f"/api/v1/allocations/{allocation_id}/reward-claims",
+        headers=auth_headers,
+        json={"team_id": str(team_id), "total_sats": 210},
+    )
+    assert claims_res.status_code == 200, claims_res.text
+    claims = claims_res.json()["items"]
+    assert len(claims) == len(members)
+    assert all("/claim/" in claim["claim_url"] for claim in claims)
+    assert all(claim["status"] == "pending" for claim in claims)
+
+    for claim in claims:
+        public = client.get(f"/api/v1/allocations/reward-claims/{claim['token']}")
+        assert public.status_code == 200, public.text
+        assert public.json()["participant_name"] == claim["name"]
+
+        submitted = client.post(
+            f"/api/v1/allocations/reward-claims/{claim['token']}",
+            json={"lightning_address": f"{claim['name'].lower()}@getalby.com"},
+        )
+        assert submitted.status_code == 200, submitted.text
+        assert submitted.json()["status"] == "claimed"
+
+    payout = client.post(
+        f"/api/v1/allocations/{allocation_id}/payouts",
+        headers=auth_headers,
+        json={"team_id": str(team_id), "total_sats": 210},
+    )
+    assert payout.status_code == 201, payout.text
+    body = payout.json()
+    assert {item["lightning_address"] for item in body["items"]} == {
+        f"{claim['name'].lower()}@getalby.com" for claim in claims
+    }
+
+    final = _pay_all(client, auth_headers, body)
+    assert final["status"] == "complete"
+    paid_claim = client.get(f"/api/v1/allocations/reward-claims/{claims[0]['token']}")
+    assert paid_claim.status_code == 200
+    assert paid_claim.json()["status"] == "paid"
+
+
 def test_payout_idempotent_second_call_rejected(client, auth_headers):
     # A team must never get a second payout (double-click / client retry).
     _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=True)

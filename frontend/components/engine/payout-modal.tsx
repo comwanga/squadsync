@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Zap, CheckCircle2, XCircle } from "lucide-react";
+import QRCode from "react-qr-code";
+import { Zap, CheckCircle2, XCircle, QrCode, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,11 +19,13 @@ import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api";
 import {
   createPayout,
+  createRewardClaims,
   preflightPayout,
   reportPayoutItemResult,
   reportPayoutItemFailed,
   type Payout,
   type PayoutItem,
+  type RewardClaim,
   type Team,
 } from "@/hooks/use-allocation";
 import { resolveInvoice, payWithNwc } from "@/lib/lightning";
@@ -42,6 +45,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
   const [sending, setSending] = useState(false);
   const [payout, setPayout] = useState<Payout | null>(null);
   const [preflight, setPreflight] = useState<string[]>([]);
+  const [claims, setClaims] = useState<RewardClaim[]>([]);
 
   const n = team.members.length;
   const base = n > 0 ? Math.floor(totalSats / n) : 0;
@@ -51,6 +55,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     if (!o) {
       setNwc("");
       setPreflight([]);
+      setClaims([]);
     }
     onOpenChange(o);
   };
@@ -126,6 +131,30 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     setPreflight(issues);
   };
 
+  const generateClaimLinks = async () => {
+    if (!session?.accessToken) return;
+    setSending(true);
+    try {
+      const result = await createRewardClaims(session.accessToken, allocationId, {
+        team_id: team.id,
+        total_sats: totalSats,
+      });
+      setClaims(result.items);
+      setAddresses(prev => {
+        const next = { ...prev };
+        for (const claim of result.items) {
+          if (claim.lightning_address) next[claim.participant_id] = claim.lightning_address;
+        }
+        return next;
+      });
+      toast.success("Claim QR links ready");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not create claim links");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleRetry = async () => {
     if (!session?.accessToken || !payout) return;
     setSending(true);
@@ -143,6 +172,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
 
   const canSend = !sending && !!nwc && totalSats >= n;
   const hasFailedItems = payout?.items.some(item => item.status === "failed");
+  const claimedCount = claims.filter(claim => claim.lightning_address).length;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -186,12 +216,72 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
             </p>
           </div>
 
+          <div className="rounded-md border bg-slate-50 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">Recipient claim QR</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Recipients scan, enter a Lightning Address, then you can send instantly from this wallet.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateClaimLinks}
+                disabled={sending || !!payout}
+              >
+                {claims.length ? (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                ) : (
+                  <QrCode className="mr-2 h-4 w-4" />
+                )}
+                {claims.length ? "Refresh claims" : "Create QR links"}
+              </Button>
+            </div>
+
+            {claims.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {claimedCount} of {claims.length} recipient{claims.length === 1 ? "" : "s"} ready.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {claims.map(claim => (
+                    <div key={claim.id} className="rounded-md border bg-white p-2">
+                      <div className="flex gap-2">
+                        <div className="shrink-0 rounded bg-white p-1">
+                          <QRCode value={claim.claim_url} size={72} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{claim.name}</p>
+                          <p className="font-mono text-xs text-muted-foreground">{claim.amount_sats} sats</p>
+                          <p className={claim.lightning_address ? "text-xs text-green-700" : "text-xs text-amber-700"}>
+                            {claim.lightning_address ? "Claimed" : "Waiting for scan"}
+                          </p>
+                          <a
+                            href={claim.claim_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-primary underline-offset-2 hover:underline"
+                          >
+                            Open link
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Split preview + address overrides */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Split preview</p>
+            <p className="text-sm font-medium">Split preview and manual fallback</p>
             <div className="space-y-2">
               {team.members.map((member, i) => {
                 const memberSats = base + (i < rem ? 1 : 0);
+                const claim = claims.find(item => item.participant_id === member.id);
                 return (
                   <div key={member.id} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
@@ -200,8 +290,8 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                     </div>
                     <Input
                       type="text"
-                      placeholder="name@domain (optional)"
-                      value={addresses[member.id] ?? ""}
+                      placeholder={claim?.lightning_address ?? "name@domain (optional)"}
+                      value={addresses[member.id] ?? claim?.lightning_address ?? ""}
                       onChange={e =>
                         setAddresses(prev => ({ ...prev, [member.id]: e.target.value }))
                       }

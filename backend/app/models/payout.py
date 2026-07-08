@@ -38,3 +38,24 @@ class PayoutItem(Base):
     preimage = Column(String, nullable=True)
     error = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class RewardClaim(Base):
+    __tablename__ = "reward_claims"
+    __table_args__ = (
+        UniqueConstraint("allocation_id", "team_id", "participant_id", name="uq_reward_claim_member"),
+    )
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    token = Column(String, nullable=False, unique=True, index=True)
+    allocation_id = Column(Uuid(as_uuid=True), ForeignKey("allocations.id"), nullable=False, index=True)
+    team_id = Column(Uuid(as_uuid=True), ForeignKey("teams.id"), nullable=False, index=True)
+    participant_id = Column(Uuid(as_uuid=True), ForeignKey("participants.id"), nullable=False, index=True)
+    total_sats = Column(Integer, nullable=False)
+    amount_sats = Column(Integer, nullable=False)
+    lightning_address = Column(String, nullable=True)
+    # pending | claimed | paid | expired
+    status = Column(String, nullable=False, default="pending")
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    claimed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

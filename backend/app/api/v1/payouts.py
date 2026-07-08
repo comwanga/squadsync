@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta, timezone
+import re
+import secrets
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,16 +10,26 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.models.allocation import Allocation
-from app.models.payout import Payout, PayoutItem
-from app.models.team import Team
+from app.models.participant import Participant
+from app.models.payout import Payout, PayoutItem, RewardClaim
+from app.models.team import Team, TeamMember
 from app.models.user import User
 from app.schemas.payout import (
-    PayoutCreate, PayoutOut, PayoutItemResult, PayoutItemFailed, PayoutPreflightOut,
+    PayoutCreate,
+    PayoutOut,
+    PayoutItemResult,
+    PayoutItemFailed,
+    PayoutPreflightOut,
+    PublicRewardClaimOut,
+    RewardClaimBatchOut,
+    RewardClaimCreate,
+    RewardClaimSubmit,
 )
 from app.services.event_service import assert_allocation_organizer
 from app.services import payout_service
 
 router = APIRouter()
+LIGHTNING_ADDRESS_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _payout_out(db: Session, payout: Payout) -> PayoutOut:
@@ -26,6 +39,38 @@ def _payout_out(db: Session, payout: Payout) -> PayoutOut:
         team_label=payout.team_label, total_sats=payout.total_sats, status=payout.status,
         items=items,
     )
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _is_expired(claim: RewardClaim) -> bool:
+    expires_at = claim.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at <= _utcnow()
+
+
+def _claim_url(token: str) -> str:
+    origin = settings.FRONTEND_URL.split(",")[0].strip().rstrip("/")
+    return f"{origin}/claim/{token}"
+
+
+def _claim_out(claim: RewardClaim, participant: Participant) -> dict:
+    return {
+        "id": claim.id,
+        "token": claim.token,
+        "allocation_id": claim.allocation_id,
+        "team_id": claim.team_id,
+        "participant_id": claim.participant_id,
+        "name": participant.name,
+        "amount_sats": claim.amount_sats,
+        "lightning_address": claim.lightning_address,
+        "status": claim.status,
+        "expires_at": claim.expires_at.isoformat(),
+        "claim_url": _claim_url(claim.token),
+    }
 
 
 def _preflight(db: Session, allocation_id: UUID, req: PayoutCreate, user_id: UUID):
@@ -69,6 +114,130 @@ def preflight_payout(
             for participant, address, amount_sats in splits
         ],
     )
+
+
+@router.post("/{allocation_id}/reward-claims", response_model=RewardClaimBatchOut)
+def create_reward_claims(
+    allocation_id: UUID,
+    req: RewardClaimCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    allocation: Allocation = assert_allocation_organizer(db, allocation_id, current_user.id)
+    team = db.query(Team).filter(Team.id == req.team_id, Team.allocation_id == allocation_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found in this allocation")
+    if req.total_sats > settings.PAYOUT_MAX_SATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"total_sats {req.total_sats} exceeds the payout ceiling "
+                   f"of {settings.PAYOUT_MAX_SATS} sats",
+        )
+
+    members = (
+        db.query(Participant)
+        .join(TeamMember, Participant.id == TeamMember.participant_id)
+        .filter(TeamMember.team_id == req.team_id)
+        .order_by(Participant.id)
+        .all()
+    )
+    try:
+        splits = payout_service.compute_split(members, req.total_sats)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    expires_at = _utcnow() + timedelta(hours=48)
+    items = []
+    for participant, amount_sats in splits:
+        claim = db.query(RewardClaim).filter(
+            RewardClaim.allocation_id == allocation.id,
+            RewardClaim.team_id == team.id,
+            RewardClaim.participant_id == participant.id,
+        ).first()
+        if claim and claim.status != "paid":
+            claim.total_sats = req.total_sats
+            claim.amount_sats = amount_sats
+            claim.expires_at = expires_at
+            if claim.lightning_address:
+                claim.status = "claimed"
+            elif claim.status == "expired":
+                claim.status = "pending"
+        elif not claim:
+            claim = RewardClaim(
+                token=secrets.token_urlsafe(24),
+                allocation_id=allocation.id,
+                team_id=team.id,
+                participant_id=participant.id,
+                total_sats=req.total_sats,
+                amount_sats=amount_sats,
+                lightning_address=participant.lightning_address,
+                status="claimed" if participant.lightning_address else "pending",
+                expires_at=expires_at,
+            )
+            db.add(claim)
+            db.flush()
+        items.append(_claim_out(claim, participant))
+    db.commit()
+    return {"team_id": team.id, "total_sats": req.total_sats, "items": items}
+
+
+@router.get("/reward-claims/{token}", response_model=PublicRewardClaimOut)
+def get_reward_claim(token: str, db: Session = Depends(get_db)):
+    claim = db.query(RewardClaim).filter(RewardClaim.token == token).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Reward claim not found")
+    participant = db.query(Participant).filter(Participant.id == claim.participant_id).first()
+    team = db.query(Team).filter(Team.id == claim.team_id).first()
+    if not participant or not team:
+        raise HTTPException(status_code=404, detail="Reward claim is no longer available")
+    if claim.status == "pending" and _is_expired(claim):
+        claim.status = "expired"
+        db.commit()
+    return {
+        "token": claim.token,
+        "participant_name": participant.name,
+        "team_name": team.name,
+        "amount_sats": claim.amount_sats,
+        "status": claim.status,
+        "expires_at": claim.expires_at.isoformat(),
+        "lightning_address": claim.lightning_address,
+    }
+
+
+@router.post("/reward-claims/{token}", response_model=PublicRewardClaimOut)
+def submit_reward_claim(token: str, req: RewardClaimSubmit, db: Session = Depends(get_db)):
+    address = req.lightning_address.strip()
+    if not LIGHTNING_ADDRESS_RE.match(address):
+        raise HTTPException(status_code=422, detail="Use a Lightning Address like name@example.com")
+
+    claim = db.query(RewardClaim).filter(RewardClaim.token == token).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Reward claim not found")
+    participant = db.query(Participant).filter(Participant.id == claim.participant_id).first()
+    team = db.query(Team).filter(Team.id == claim.team_id).first()
+    if not participant or not team:
+        raise HTTPException(status_code=404, detail="Reward claim is no longer available")
+    if claim.status == "paid":
+        raise HTTPException(status_code=409, detail="This reward has already been paid")
+    if _is_expired(claim):
+        claim.status = "expired"
+        db.commit()
+        raise HTTPException(status_code=410, detail="This reward claim has expired")
+
+    claim.lightning_address = address
+    claim.status = "claimed"
+    claim.claimed_at = _utcnow()
+    participant.lightning_address = address
+    db.commit()
+    return {
+        "token": claim.token,
+        "participant_name": participant.name,
+        "team_name": team.name,
+        "amount_sats": claim.amount_sats,
+        "status": claim.status,
+        "expires_at": claim.expires_at.isoformat(),
+        "lightning_address": claim.lightning_address,
+    }
 
 
 @router.post("/{allocation_id}/payouts", response_model=PayoutOut,

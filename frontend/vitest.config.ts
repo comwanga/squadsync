@@ -12,6 +12,7 @@ export default defineConfig({
     // via `playwright test` — don't let vitest's default glob pull in *.spec.ts
     // from e2e/, where @playwright/test's test.describe() throws under vitest.
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+    testTimeout: 10_000,
   },
   resolve: {
     alias: {

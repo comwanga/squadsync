@@ -8,7 +8,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.payout import Payout, PayoutItem
+from app.models.payout import Payout, PayoutItem, RewardClaim
 from app.models.participant import Participant
 from app.models.team import Team, TeamMember
 from app.services import bolt11
@@ -105,6 +105,12 @@ def record_item_result(
         item.preimage = preimage
         if bolt11.preimage_matches(bolt11_str, preimage):
             item.status, item.error = "paid", None
+            claim = db.query(RewardClaim).filter(
+                RewardClaim.allocation_id == payout.allocation_id,
+                RewardClaim.participant_id == item.participant_id,
+            ).first()
+            if claim:
+                claim.status = "paid"
         else:
             item.status = "unverified"
             item.error = "wallet returned a preimage that does not match the invoice"
@@ -125,5 +131,4 @@ def record_item_failed(db: Session, payout: Payout, item: PayoutItem, error: str
     db.commit()
     db.refresh(payout)
     return payout
-
 
