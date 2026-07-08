@@ -3,13 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Team } from "@/hooks/use-allocation";
 
 const strengthColor: Record<string, string> = {
-  technical: "bg-blue-100 text-blue-800",
-  design: "bg-pink-100 text-pink-800",
-  planning: "bg-indigo-100 text-indigo-800",
-  coordination: "bg-green-100 text-green-800",
-  communication: "bg-orange-100 text-orange-800",
-  research: "bg-purple-100 text-purple-800",
-  domain_expert: "bg-teal-100 text-teal-800",
+  technical: "bg-blue-500/20 text-blue-100 border-blue-400/30",
+  design: "bg-pink-500/20 text-pink-100 border-pink-400/30",
+  planning: "bg-indigo-500/20 text-indigo-100 border-indigo-400/30",
+  coordination: "bg-green-500/20 text-green-100 border-green-400/30",
+  communication: "bg-orange-500/20 text-orange-100 border-orange-400/30",
+  research: "bg-purple-500/20 text-purple-100 border-purple-400/30",
+  domain_expert: "bg-teal-500/20 text-teal-100 border-teal-400/30",
 };
 
 export function TeamCard({
@@ -54,7 +54,7 @@ export function TeamCard({
             {onPayout && (
               <button
                 onClick={onPayout}
-                className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium px-1.5 py-0.5 rounded hover:bg-amber-50 transition-colors"
+                className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200 font-medium px-1.5 py-0.5 rounded hover:bg-amber-400/10 transition-colors"
               >
                 <Zap className="h-3 w-3" />
                 Rewards
@@ -73,7 +73,7 @@ export function TeamCard({
           {Object.entries(strengthCounts).map(([strength, count]) => (
             <span
               key={strength}
-              className={`px-1.5 py-0.5 rounded text-xs font-medium capitalize ${strengthColor[strength] ?? "bg-slate-100 text-slate-800"}`}
+              className={`rounded border px-1.5 py-0.5 text-xs font-medium capitalize ${strengthColor[strength] ?? "bg-slate-500/20 text-slate-100 border-slate-400/30"}`}
             >
               {strength.replaceAll("_", " ")} ×{count}
             </span>
@@ -81,24 +81,24 @@ export function TeamCard({
         </div>
 
         {team.rationale && (
-          <div className="rounded-md bg-violet-50 border border-violet-100 p-2 space-y-1">
-            <p className="text-xs font-semibold text-violet-900">{team.rationale.title}</p>
-            <p className="text-xs text-violet-800">{team.rationale.summary}</p>
+          <div className="rounded-md border border-violet-500/30 bg-violet-950/30 p-2 space-y-1">
+            <p className="text-xs font-semibold text-violet-100">{team.rationale.title}</p>
+            <p className="text-xs text-violet-200">{team.rationale.summary}</p>
             {team.rationale.strengths.length > 0 && (
-              <ul className="text-xs text-violet-700 list-disc list-inside">
+              <ul className="text-xs text-violet-200 list-disc list-inside">
                 {team.rationale.strengths.map((s, i) => <li key={`s-${i}`}>{s}</li>)}
               </ul>
             )}
             {team.rationale.gaps.length > 0 && (
-              <ul className="text-xs text-amber-700 list-disc list-inside">
+              <ul className="text-xs text-amber-200 list-disc list-inside">
                 {team.rationale.gaps.map((g, i) => <li key={`g-${i}`}>{g}</li>)}
               </ul>
             )}
           </div>
         )}
 
-        <div className="rounded-md border bg-slate-50 p-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Why this team?</p>
+        <div className="rounded-md border border-slate-700 bg-slate-950/35 p-2 text-xs text-muted-foreground">
+          <p className="font-medium text-slate-100">Why this team?</p>
           <p className="mt-1">
             This draft keeps {team.members.length} member{team.members.length !== 1 ? "s" : ""} together with {experienceSummary || "mixed experience"} and {strengthSummary || "mixed strengths"}.
           </p>
@@ -111,7 +111,7 @@ export function TeamCard({
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground w-20">{label}</span>
-              <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+              <div className="flex-1 bg-slate-800 rounded-full h-1.5">
                 <div
                   className="bg-primary rounded-full h-1.5 transition-all"
                   style={{ width: `${value ?? 0}%` }}
