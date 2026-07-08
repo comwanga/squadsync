@@ -30,6 +30,16 @@ export function TeamCard({
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, {});
+  const experienceCounts = team.members.reduce<Record<string, number>>((acc, m) => {
+    acc[m.experience_level] = (acc[m.experience_level] ?? 0) + 1;
+    return acc;
+  }, {});
+  const strengthSummary = Object.entries(strengthCounts)
+    .map(([strength, count]) => `${count} ${strength.replaceAll("_", " ")}`)
+    .join(", ");
+  const experienceSummary = Object.entries(experienceCounts)
+    .map(([level, count]) => `${count} ${level}`)
+    .join(", ");
 
   return (
     <Card className="h-full">
@@ -47,7 +57,7 @@ export function TeamCard({
                 className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium px-1.5 py-0.5 rounded hover:bg-amber-50 transition-colors"
               >
                 <Zap className="h-3 w-3" />
-                Pay out
+                Rewards
               </button>
             )}
           </div>
@@ -86,6 +96,13 @@ export function TeamCard({
             )}
           </div>
         )}
+
+        <div className="rounded-md border bg-slate-50 p-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Why this team?</p>
+          <p className="mt-1">
+            This draft keeps {team.members.length} member{team.members.length !== 1 ? "s" : ""} together with {experienceSummary || "mixed experience"} and {strengthSummary || "mixed strengths"}.
+          </p>
+        </div>
 
         <div className="space-y-1">
           {[

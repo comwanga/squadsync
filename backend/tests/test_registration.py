@@ -65,12 +65,14 @@ def test_register_other_with_text_is_pending(client, active_event):
     assert data["normalized_strength"] is None
 
 
-def test_duplicate_registration_rejected(client, active_event):
+def test_duplicate_registration_updates_existing(client, active_event):
     slug = active_event["registration_slug"]
     payload = {"name": "Alice", "email": "alice@example.com", "primary_strength": "design", "experience_level": "beginner"}
-    client.post(f"/api/v1/events/{slug}/register", json=payload)
-    res = client.post(f"/api/v1/events/{slug}/register", json=payload)
-    assert res.status_code == 400
+    first = client.post(f"/api/v1/events/{slug}/register", json=payload)
+    res = client.post(f"/api/v1/events/{slug}/register", json={**payload, "name": "Alice Updated"})
+    assert res.status_code == 200
+    assert res.json()["id"] == first.json()["id"]
+    assert res.json()["name"] == "Alice Updated"
 
 
 def test_list_participants(client, auth_headers, active_event):

@@ -11,7 +11,7 @@ from app.models.payout import Payout, PayoutItem
 from app.models.team import Team
 from app.models.user import User
 from app.schemas.payout import (
-    PayoutCreate, PayoutOut, PayoutItemResult, PayoutItemFailed,
+    PayoutCreate, PayoutOut, PayoutItemResult, PayoutItemFailed, PayoutPreflightOut,
 )
 from app.services.event_service import assert_allocation_organizer
 from app.services import payout_service
@@ -28,6 +28,49 @@ def _payout_out(db: Session, payout: Payout) -> PayoutOut:
     )
 
 
+def _preflight(db: Session, allocation_id: UUID, req: PayoutCreate, user_id: UUID):
+    allocation: Allocation = assert_allocation_organizer(db, allocation_id, user_id)
+    team = db.query(Team).filter(Team.id == req.team_id, Team.allocation_id == allocation_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found in this allocation")
+
+    if req.total_sats > settings.PAYOUT_MAX_SATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"total_sats {req.total_sats} exceeds the payout ceiling "
+                   f"of {settings.PAYOUT_MAX_SATS} sats",
+        )
+
+    try:
+        splits = payout_service.preflight(db, team.id, req.total_sats, req.addresses)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return allocation, team, splits
+
+
+@router.post("/{allocation_id}/payouts/preflight", response_model=PayoutPreflightOut)
+def preflight_payout(
+    allocation_id: UUID,
+    req: PayoutCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _, _, splits = _preflight(db, allocation_id, req, current_user.id)
+    return PayoutPreflightOut(
+        team_id=req.team_id,
+        total_sats=req.total_sats,
+        items=[
+            {
+                "participant_id": participant.id,
+                "name": participant.name,
+                "lightning_address": address,
+                "amount_sats": amount_sats,
+            }
+            for participant, address, amount_sats in splits
+        ],
+    )
+
+
 @router.post("/{allocation_id}/payouts", response_model=PayoutOut,
              status_code=status.HTTP_201_CREATED)
 def create_payout(
@@ -36,18 +79,7 @@ def create_payout(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    allocation: Allocation = assert_allocation_organizer(db, allocation_id, current_user.id)
-    team = db.query(Team).filter(Team.id == req.team_id, Team.allocation_id == allocation_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail="Team not found in this allocation")
-
-    # Spend ceiling: reject an implausibly large amount before touching a wallet.
-    if req.total_sats > settings.PAYOUT_MAX_SATS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"total_sats {req.total_sats} exceeds the payout ceiling "
-                   f"of {settings.PAYOUT_MAX_SATS} sats",
-        )
+    allocation, team, splits = _preflight(db, allocation_id, req, current_user.id)
 
     # Idempotency: refuse a second payout for a team that already has one, so a
     # double-click or a client retry after a timeout can never pay winners twice.
@@ -58,12 +90,6 @@ def create_payout(
             status_code=status.HTTP_409_CONFLICT,
             detail="This team has already been paid; retry the existing payout instead.",
         )
-
-    # Pre-flight: split + verify every member has an address BEFORE spending anything.
-    try:
-        splits = payout_service.preflight(db, team.id, req.total_sats, req.addresses)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
 
     payout = Payout(event_id=allocation.event_id, allocation_id=allocation_id,
                     team_label=team.name, total_sats=req.total_sats, status="pending")

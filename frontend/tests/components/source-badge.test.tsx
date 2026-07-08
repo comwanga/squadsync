@@ -5,7 +5,7 @@ import { SourceBadge } from "@/components/attendees/source-badge";
 describe("SourceBadge", () => {
   it("labels each source", () => {
     const cases: [string, string][] = [
-      ["ai", "AI"], ["fallback", "Auto"], ["manual", "Manual"], ["preset", "preset"],
+      ["ai", "Helper"], ["fallback", "Auto"], ["manual", "Manual"], ["preset", "preset"],
     ];
     for (const [source, label] of cases) {
       const { unmount } = render(<SourceBadge source={source} />);

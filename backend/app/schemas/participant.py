@@ -81,3 +81,10 @@ class EventPublicInfo(BaseModel):
     status: str
 
     model_config = {"from_attributes": True}
+
+
+class ParticipantImportSummary(BaseModel):
+    created: int
+    updated: int
+    skipped: int
+    errors: list[str] = []

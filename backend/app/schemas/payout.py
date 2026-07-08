@@ -43,6 +43,19 @@ class PayoutItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PayoutPreflightItem(BaseModel):
+    participant_id: UUID
+    name: str
+    lightning_address: str
+    amount_sats: int
+
+
+class PayoutPreflightOut(BaseModel):
+    team_id: UUID
+    total_sats: int
+    items: list[PayoutPreflightItem]
+
+
 class PayoutOut(BaseModel):
     id: UUID
     event_id: UUID

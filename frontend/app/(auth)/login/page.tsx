@@ -9,7 +9,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <Logo priority className="h-10 w-auto mx-auto mb-2" />
           <CardDescription>
-            No account needed — connect with your Nostr identity
+            Sign in to create and manage events.
           </CardDescription>
         </CardHeader>
         <CardContent>

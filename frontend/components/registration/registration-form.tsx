@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { PRIMARY_STRENGTHS, EXPERIENCE_LEVELS } from "@/lib/taxonomy";
 
+const LIGHTNING_ADDRESS_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().min(1, "Email is required").email("Invalid email"),
@@ -27,7 +29,10 @@ const schema = z.object({
   strength_other: z.string().optional(),
   experience_level: z.enum(["beginner", "intermediate", "advanced"]),
   npub: z.string().optional(),
-  lightning_address: z.string().optional(),
+  lightning_address: z.string().optional().refine(
+    value => !value || LIGHTNING_ADDRESS_RE.test(value),
+    "Use an address like name@example.com"
+  ),
 }).refine(
   d => d.primary_strength !== "other" || (d.strength_other?.trim().length ?? 0) > 0,
   { message: "Please describe your strength", path: ["strength_other"] },
@@ -45,12 +50,12 @@ interface EventInfo {
 export function RegistrationForm({ event, slug }: { event: EventInfo; slug: string }) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { primary_strength: "technical", experience_level: "intermediate" },
   });
 
-  const selectedStrength = watch("primary_strength");
+  const selectedStrength = useWatch({ control, name: "primary_strength" });
 
   useEffect(() => {
     const prefillLightningAddress = async () => {
@@ -138,27 +143,6 @@ export function RegistrationForm({ event, slug }: { event: EventInfo; slug: stri
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="phone">Phone (optional)</Label>
-        <Input id="phone" type="tel" placeholder="+1 555 000 0000" {...register("phone")} />
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="npub">Nostr npub (optional)</Label>
-        <Input id="npub" placeholder="npub1…" {...register("npub")} />
-        <p className="text-xs text-muted-foreground">
-          Paste your Nostr npub to be DM&apos;d your team. Otherwise you can look it up after results are posted.
-        </p>
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="lightning_address">Lightning address (optional)</Label>
-        <Input id="lightning_address" placeholder="you@walletofsatoshi.com" {...register("lightning_address")} />
-        <p className="text-xs text-muted-foreground">
-          Where to send your share if your team wins a Bitcoin prize. Auto-filled from your Nostr profile when available.
-        </p>
-      </div>
-
-      <div className="space-y-1">
         <Label>Primary Strength</Label>
         <Controller
           name="primary_strength"
@@ -215,6 +199,33 @@ export function RegistrationForm({ event, slug }: { event: EventInfo; slug: stri
           )}
         />
       </div>
+
+      <details className="rounded-md border bg-slate-50 p-3 text-sm">
+        <summary className="cursor-pointer font-medium">Optional contact and rewards</summary>
+        <div className="mt-3 space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="phone">Phone (optional)</Label>
+            <Input id="phone" type="tel" placeholder="+1 555 000 0000" {...register("phone")} />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="npub">Team notification ID (optional)</Label>
+            <Input id="npub" placeholder="Paste your notification ID" {...register("npub")} />
+            <p className="text-xs text-muted-foreground">
+              Add this only if the organizer asked for it. You can still find your team from the results page.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="lightning_address">Prize address (optional)</Label>
+            <Input id="lightning_address" placeholder="name@example.com" {...register("lightning_address")} />
+            <p className="text-xs text-muted-foreground">
+              Used only if this event has optional rewards. You can leave it blank.
+            </p>
+            {errors.lightning_address && <p className="text-sm text-red-500">{errors.lightning_address.message}</p>}
+          </div>
+        </div>
+      </details>
 
       <Button type="submit" className="w-full" size="lg" disabled={loading}>
         {loading ? "Submitting…" : "Join Event"}

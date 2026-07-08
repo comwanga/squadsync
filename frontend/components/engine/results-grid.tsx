@@ -11,6 +11,24 @@ import { Button } from "@/components/ui/button";
 import type { Allocation, Team } from "@/hooks/use-allocation";
 import { normalizationNote } from "@/lib/allocation-notes";
 
+function pct(value?: number) {
+  return value == null ? "—" : `${value.toFixed(0)}%`;
+}
+
+function teamSizeBalance(teams: Team[]) {
+  if (teams.length === 0) return "—";
+  const sizes = teams.map(team => team.members.length);
+  const min = Math.min(...sizes);
+  const max = Math.max(...sizes);
+  return max - min <= 1 ? "Balanced" : `${min}-${max} members`;
+}
+
+function averageMetric(teams: Team[], key: "skill_score" | "role_balance_score" | "fairness_score") {
+  const values = teams.map(team => team[key]).filter((value): value is number => typeof value === "number");
+  if (values.length === 0) return undefined;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 interface ResultsGridProps {
   allocation: Allocation;
   eventId: string;
@@ -117,6 +135,36 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold">
+              {isDraft ? "Draft preview" : "Published teams"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Same participants and settings produce the same teams. Allocation ID {allocation.id.slice(0, 8)} uses participant snapshot {allocation.snapshot_hash.slice(0, 10)}.
+            </p>
+          </div>
+          {isDraft && (
+            <p className="text-xs text-muted-foreground max-w-sm">
+              Review team sizes, experience balance, and strength coverage before publishing the public results link.
+            </p>
+          )}
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: "Team size balance", value: teamSizeBalance(allocation.teams) },
+            { label: "Experience balance", value: pct(averageMetric(allocation.teams, "skill_score")) },
+            { label: "Strength balance", value: pct(averageMetric(allocation.teams, "role_balance_score")) },
+          ].map(item => (
+            <div key={item.label} className="rounded-md border bg-slate-50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="text-sm font-semibold">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {note && (
         <div className="text-sm text-muted-foreground bg-violet-50 border border-violet-100 rounded-lg px-4 py-2">
           {note}

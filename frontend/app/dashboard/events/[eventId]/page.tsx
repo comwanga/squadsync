@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Users, Settings, Zap, ArrowRight, Archive, Trash2, Calendar } from "lucide-react";
+import { Users, Settings, Wand2, ArrowRight, Archive, Trash2, Calendar, Share2 } from "lucide-react";
 import { EventBreadcrumb } from "@/components/layout/event-breadcrumb";
 
 export default function EventPage({ params }: { params: Promise<{ eventId: string }> }) {
@@ -70,10 +70,19 @@ export default function EventPage({ params }: { params: Promise<{ eventId: strin
     }
   };
 
-  const quickActions = [
-    { label: "Attendees", icon: Users, href: "attendees", description: "View participants & QR code" },
-    { label: "Configure", icon: Settings, href: "configure", description: "Set allocation weights & rules" },
-    { label: "Run Allocation", icon: Zap, href: "engine", description: "Generate balanced teams" },
+  const organizerSteps = [
+    {
+      step: "1",
+      label: "Create event",
+      icon: Calendar,
+      href: ".",
+      description: event.status === "draft" ? "Open registration when you are ready for people to join." : "Event details are ready.",
+      action: event.status === "draft" ? "Open registration" : "View details",
+      onClick: event.status === "draft" ? handleActivate : undefined,
+      disabled: activating,
+    },
+    { step: "2", label: "Share QR/link", icon: Share2, href: "attendees", description: "Share the join page and watch participants appear.", action: "Share event" },
+    { step: "3", label: "Generate teams", icon: Wand2, href: "engine", description: "Preview balanced teams, then publish when ready.", action: "Generate teams" },
   ];
 
   return (
@@ -105,24 +114,53 @@ export default function EventPage({ params }: { params: Promise<{ eventId: strin
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {quickActions.map(({ label, icon: Icon, href, description }) => (
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Organizer flow</h2>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {organizerSteps.map(({ step, label, icon: Icon, href, description, action, onClick, disabled }) => (
           <Card key={href} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                  {step}
+                </span>
                 <Icon className="h-4 w-4 text-primary" /> {label}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-3">{description}</p>
-              <Button asChild variant="ghost" size="sm" className="p-0 h-auto">
-                <Link href={`/dashboard/events/${eventId}/${href}`}>
-                  Go <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                </Link>
-              </Button>
+              {onClick ? (
+                <Button variant="ghost" size="sm" className="p-0 h-auto" onClick={onClick} disabled={disabled}>
+                  {disabled ? "Opening..." : action} <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              ) : href === "." ? (
+                <Button variant="ghost" size="sm" className="p-0 h-auto" disabled>
+                  {action}
+                </Button>
+              ) : (
+                <Button asChild variant="ghost" size="sm" className="p-0 h-auto">
+                  <Link href={`/dashboard/events/${eventId}/${href}`}>
+                    {action} <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-t pt-4">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/dashboard/events/${eventId}/attendees`}>
+            <Users className="mr-2 h-4 w-4" /> Manage participants
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/dashboard/events/${eventId}/configure`}>
+            <Settings className="mr-2 h-4 w-4" /> Balance settings
+          </Link>
+        </Button>
       </div>
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>

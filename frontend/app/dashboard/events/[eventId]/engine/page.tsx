@@ -44,8 +44,8 @@ export default function EnginePage({ params }: { params: Promise<{ eventId: stri
     <div className="space-y-6">
       <EventBreadcrumbAuto eventId={eventId} current="Allocation" />
       <div>
-        <h1 className="text-xl font-bold">Allocation Engine</h1>
-        <p className="text-sm text-muted-foreground">Generate balanced teams from registered participants</p>
+        <h1 className="text-xl font-bold">Generate teams</h1>
+        <p className="text-sm text-muted-foreground">Preview balanced teams from registered participants</p>
       </div>
 
       {!allocation ? (

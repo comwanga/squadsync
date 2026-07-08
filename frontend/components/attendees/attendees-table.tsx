@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+import { Download, FileUp } from "lucide-react";
 import { fetchAPI } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -37,6 +40,8 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
   const [search, setSearch] = useState("");
   const [strengthFilter, setStrengthFilter] = useState("all");
   const [experienceFilter, setExperienceFilter] = useState("all");
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const params = new URLSearchParams();
   if (strengthFilter !== "all") params.set("strength", strengthFilter);
@@ -62,33 +67,118 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
     mutate();
   }
 
+  async function downloadCsv(path: string, filename: string) {
+    if (!session?.accessToken) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Download failed");
+    }
+  }
+
+  function downloadTemplate() {
+    const csv = "name,email,phone,primary_strength,strength_other,experience_level,notification_id,prize_address\n";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "squadsync-participants-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importCsv(file: File) {
+    if (!session?.accessToken) return;
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/events/${eventId}/participants/import/csv`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+        body: form,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail ?? `Import failed (${res.status})`);
+      if (body.errors?.length) {
+        toast.error(`Import failed: ${body.errors[0]}`);
+      } else {
+        toast.success(`Imported ${body.created} new, updated ${body.updated}, skipped ${body.skipped}`);
+        mutate();
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Input
-          placeholder="Search by name or email…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="sm:max-w-xs"
-        />
-        <Select value={strengthFilter} onValueChange={setStrengthFilter}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All strengths" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All strengths</SelectItem>
-            {CONCRETE_STRENGTHS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={experienceFilter} onValueChange={setExperienceFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All levels" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All levels</SelectItem>
-            {EXPERIENCE_LEVELS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="sm:max-w-xs"
+          />
+          <Select value={strengthFilter} onValueChange={setStrengthFilter}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="All strengths" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All strengths</SelectItem>
+              {CONCRETE_STRENGTHS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={experienceFilter} onValueChange={setExperienceFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All levels" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All levels</SelectItem>
+              {EXPERIENCE_LEVELS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
+            <Download className="mr-2 h-4 w-4" /> Template
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => downloadCsv(`/api/v1/events/${eventId}/participants/export/csv`, `squadsync-participants-${eventId}.csv`)}
+          >
+            <Download className="mr-2 h-4 w-4" /> Export
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+            <FileUp className="mr-2 h-4 w-4" /> {importing ? "Importing..." : "Import"}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) importCsv(file);
+            }}
+          />
+        </div>
       </div>
 
       {isLoading ? (

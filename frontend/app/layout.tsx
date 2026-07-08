@@ -8,8 +8,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SquadSync — Group Allocation Engine",
-  description: "Intelligent team formation for hackathons, workshops, and events",
+  title: "SquadSync - Fair Team Generator",
+  description: "Simple team formation for hackathons, workshops, and events",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

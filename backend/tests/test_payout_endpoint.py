@@ -53,6 +53,23 @@ def test_create_payout_returns_pending_without_a_credential(client, auth_headers
     assert len(body["items"]) == len(members)
 
 
+def test_payout_preflight_does_not_create_payout(client, auth_headers):
+    _, allocation_id, team_id, members = _setup_team(client, auth_headers, all_have_addresses=True)
+    res = client.post(f"/api/v1/allocations/{allocation_id}/payouts/preflight", headers=auth_headers, json={
+        "team_id": str(team_id), "total_sats": 210,
+    })
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["team_id"] == str(team_id)
+    assert body["total_sats"] == 210
+    assert len(body["items"]) == len(members)
+
+    create = client.post(f"/api/v1/allocations/{allocation_id}/payouts", headers=auth_headers, json={
+        "team_id": str(team_id), "total_sats": 210,
+    })
+    assert create.status_code == 201, create.text
+
+
 def test_payout_422_when_member_missing_address(client, auth_headers):
     # No participant has an address, so any team triggers the pre-flight 422.
     _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=False)

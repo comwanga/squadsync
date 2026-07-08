@@ -1,21 +1,35 @@
 {
   "name": "squadsync",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Simple deterministic team formation for events: create, share, self-register, allocate, and publish results.",
+  "private": true,
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "backend:test": "cd backend && python3 -m pytest",
+    "backend:migrate": "cd backend && python3 -m alembic upgrade head",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "frontend:test": "npm --prefix frontend test",
+    "frontend:build": "npm --prefix frontend run build",
+    "test": "npm run backend:test && npm run frontend:test",
+    "lint": "npm run frontend:lint",
+    "build": "npm run frontend:build",
+    "e2e": "npm --prefix frontend run test:e2e"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/comwanga/squadsync.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "team-allocation",
+    "events",
+    "fastapi",
+    "nextjs"
+  ],
+  "author": "SquadSync Contributors",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/comwanga/squadsync/issues"

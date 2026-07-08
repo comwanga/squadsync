@@ -3,17 +3,17 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Zap, Loader2 } from "lucide-react";
+import { Wand2, Loader2 } from "lucide-react";
 import { runAllocation } from "@/hooks/use-allocation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Allocation } from "@/hooks/use-allocation";
 
 const PASSES = [
-  "Pass 1 — Distributing anchors (Advanced)",
-  "Pass 2 — Core balance pipeline (Intermediate)",
-  "Pass 3 — Strength constraint enforcement",
-  "Pass 4 — Beginner fill",
+  "Step 1 - Place experienced participants",
+  "Step 2 - Balance remaining participants",
+  "Step 3 - Check strength coverage",
+  "Step 4 - Fill team sizes",
 ];
 
 interface RunPanelProps {
@@ -48,15 +48,15 @@ export function RunPanel({ eventId, participantCount, onComplete }: RunPanelProp
   return (
     <Card className="max-w-lg">
       <CardHeader>
-        <CardTitle className="text-base">Allocation Engine</CardTitle>
+        <CardTitle className="text-base">Team preview</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
           {participantCount} participants ready for allocation.
-          The engine will run 4 passes to distribute teams fairly.
+          SquadSync will build a reproducible draft that you can review before publishing.
         </p>
         <p className="text-xs text-muted-foreground">
-          Free-text &quot;Other&quot; strengths are categorized by AI before allocation.
+          Free-text &quot;Other&quot; strengths are grouped automatically before teams are generated.
         </p>
 
         {running && (
@@ -80,7 +80,7 @@ export function RunPanel({ eventId, participantCount, onComplete }: RunPanelProp
           {running ? (
             <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Running…</>
           ) : (
-            <><Zap className="mr-2 h-4 w-4" /> Generate Teams</>
+            <><Wand2 className="mr-2 h-4 w-4" /> Generate Teams</>
           )}
         </Button>
         {participantCount < 2 && (

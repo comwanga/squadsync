@@ -1,4 +1,3 @@
-import random
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
@@ -129,7 +128,7 @@ def allocate(event_id: UUID, db: Session = Depends(get_db), current_user: User =
         db.commit()
     normalize_pending(db, event_id)
     _delete_draft_allocations(db, event_id)
-    allocation = run_allocation(db, event_id, config, seed=random.randint(1, 2**31 - 1))
+    allocation = run_allocation(db, event_id, config)
     return _build_allocation_out(db, allocation)
 
 
@@ -187,4 +186,3 @@ def publish_allocation(
     # Fire-and-forget: DM each npub-having attendee their team (no-op if Nostr unconfigured).
     background_tasks.add_task(notify_teams_task, allocation_pk)
     return {"detail": "published"}
-

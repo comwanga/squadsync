@@ -9,8 +9,8 @@ export interface GuideStep {
 export const GUIDE_STEPS: GuideStep[] = [
   {
     id: "sign-in",
-    title: "1. Sign in with Nostr",
-    caption: "No account needed — connect with your Nostr identity to reach your dashboard.",
+    title: "1. Sign in as organizer",
+    caption: "Open your dashboard to create and manage events.",
     image: "/guide/01-login.png",
   },
   {
@@ -46,7 +46,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     id: "generate",
     title: "7. Generate teams",
-    caption: "Run the engine to form balanced teams. Free-text 'Other' strengths are normalized automatically before allocation.",
+    caption: "Generate a draft preview, review the fairness metrics, then publish when ready.",
     image: "/guide/07-engine-results.png",
   },
   {
@@ -57,14 +57,14 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     id: "payout",
-    title: "9. Pay out the winning team in Bitcoin",
-    caption: "On a published allocation, choose a winning team and “Pay out”. Enter a prize in sats and connect a wallet via Nostr Wallet Connect (NIP-47) — SquadSync splits the pot evenly and pays each winner over Lightning, showing live per-member status.",
+    title: "9. Optional: Advanced Rewards",
+    caption: "For events with prizes, open Advanced Rewards on a published team, run a dry check, then split the prize when ready.",
     image: "/guide/09-payout.png",
   },
   {
     id: "ai-categorize",
     title: "10. Behind the scenes: SquadSync sorts free-text answers",
-    caption: `When someone picks “Other” and types their own strength, SquadSync categorizes it automatically before forming teams — by AI when an API key is set, deterministically otherwise. The Attendees table shows each person’s category and its source (AI / Auto / Manual), and you can override any of them.`,
+    caption: `When someone picks “Other” and types their own strength, SquadSync categorizes it automatically before forming teams. The Attendees table shows each person's category and you can override any of them.`,
     image: "/guide/10-ai-category.png",
   },
 ];

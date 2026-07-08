@@ -111,6 +111,28 @@ export interface Payout {
   items: PayoutItem[];
 }
 
+export interface PayoutPreflight {
+  team_id: string;
+  total_sats: number;
+  items: Array<{
+    participant_id: string;
+    name: string;
+    lightning_address: string;
+    amount_sats: number;
+  }>;
+}
+
+export async function preflightPayout(
+  token: string,
+  allocationId: string,
+  body: { team_id: string; total_sats: number; addresses?: Record<string, string> }
+) {
+  return fetchAPI<PayoutPreflight>(
+    `/api/v1/allocations/${allocationId}/payouts/preflight`,
+    { method: "POST", body, token }
+  );
+}
+
 export async function createPayout(
   token: string,
   allocationId: string,

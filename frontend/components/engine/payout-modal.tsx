@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api";
 import {
   createPayout,
+  preflightPayout,
   reportPayoutItemResult,
   reportPayoutItemFailed,
   type Payout,
@@ -40,6 +41,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
   const [addresses, setAddresses] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
   const [payout, setPayout] = useState<Payout | null>(null);
+  const [preflight, setPreflight] = useState<string[]>([]);
 
   const n = team.members.length;
   const base = n > 0 ? Math.floor(totalSats / n) : 0;
@@ -48,6 +50,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
   const handleOpenChange = (o: boolean) => {
     if (!o) {
       setNwc("");
+      setPreflight([]);
     }
     onOpenChange(o);
   };
@@ -101,6 +104,28 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     }
   };
 
+  const runDryCheck = async () => {
+    if (!session?.accessToken) return;
+    const issues: string[] = [];
+    try {
+      const overrides: Record<string, string> = {};
+      for (const [id, addr] of Object.entries(addresses)) {
+        if (addr.trim()) overrides[id] = addr.trim();
+      }
+      const result = await preflightPayout(session.accessToken, allocationId, {
+        team_id: team.id,
+        total_sats: totalSats,
+        addresses: Object.keys(overrides).length > 0 ? overrides : undefined,
+      });
+      issues.push(`Dry run passed for ${result.items.length} member${result.items.length === 1 ? "" : "s"}.`);
+      issues.push(`Split total: ${result.items.reduce((sum, item) => sum + item.amount_sats, 0)} sats.`);
+      if (!nwc.trim()) issues.push("Add a wallet connection before sending a real payout.");
+    } catch (err: unknown) {
+      issues.push(err instanceof Error ? err.message : "Dry run failed");
+    }
+    setPreflight(issues);
+  };
+
   const handleRetry = async () => {
     if (!session?.accessToken || !payout) return;
     setSending(true);
@@ -125,10 +150,10 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" />
-            Pay out {team.name}
+            Advanced Rewards - {team.name}
           </DialogTitle>
           <DialogDescription>
-            Send a Lightning payout to all members of this team via NWC.
+            Optional prize splitting for this team. This is not required to publish or share results.
           </DialogDescription>
         </DialogHeader>
 
@@ -146,20 +171,18 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
             />
           </div>
 
-          {/* NWC input */}
           <div className="space-y-1.5">
-            <Label htmlFor="nwc">NWC connection string</Label>
+            <Label htmlFor="nwc">Wallet connection string</Label>
             <Input
               id="nwc"
               type="password"
               value={nwc}
               onChange={e => setNwc(e.target.value)}
-              placeholder="nostr+walletconnect://..."
+              placeholder="Paste wallet connection string"
               disabled={!!payout}
             />
             <p className="text-xs text-muted-foreground">
-              Paste an NWC string from Alby, Coinos, or Alby Hub. The payment is signed in your
-              browser — the credential never reaches our server.
+              Used only in this browser while sending. It is not stored and never reaches the server.
             </p>
           </div>
 
@@ -192,11 +215,36 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
             </div>
           </div>
 
+          {preflight.length > 0 && (
+            <div className="rounded-md border bg-slate-50 p-3">
+              <p className="text-sm font-medium">Dry-run preflight</p>
+              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {preflight.map((item, index) => <li key={index}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+
           {/* Results */}
           {payout && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Payout results</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(payout, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `squadsync-payout-${payout.id}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  Export receipt
+                </Button>
                 <span
                   className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                     payout.status === "complete"
@@ -243,6 +291,11 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
         </div>
 
         <DialogFooter className="flex-wrap gap-2">
+          {!payout && (
+            <Button variant="outline" onClick={runDryCheck} disabled={sending}>
+              Dry run
+            </Button>
+          )}
           {!payout && (
             <Button onClick={handleSend} disabled={!canSend}>
               <Zap className="mr-2 h-4 w-4" />

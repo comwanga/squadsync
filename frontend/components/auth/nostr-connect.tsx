@@ -84,7 +84,7 @@ export function NostrConnect() {
         router.push("/dashboard");
         router.refresh();
       } else {
-        toast.error("Authentication failed — signature rejected");
+        toast.error("Sign-in failed. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -152,7 +152,7 @@ export function NostrConnect() {
       const { getPublicKey } = await import("nostr-tools");
       const decoded = decode(raw);
       if (decoded.type !== "nsec") {
-        toast.error("Must be an nsec key (starts with nsec1)");
+        toast.error("That recovery key format is not recognized.");
         return;
       }
       const sk = decoded.data as Uint8Array;
@@ -162,7 +162,7 @@ export function NostrConnect() {
       const event = await buildNip98Event(skHex);
       await doSignIn(pk, event);
     } catch {
-      toast.error("Invalid nsec key — check and try again");
+      toast.error("Invalid recovery key. Check it and try again.");
     }
   };
 
@@ -176,12 +176,12 @@ export function NostrConnect() {
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Your new Nostr identity has been created. Save your secret key — it cannot be recovered.
+          Your organizer access key has been created. Save the recovery key now; it cannot be recovered later.
         </p>
 
         <div className="space-y-2">
           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Public key (npub)
+            Public recovery ID
           </Label>
           <div className="flex gap-2">
             <Input
@@ -205,7 +205,7 @@ export function NostrConnect() {
 
         <div className="space-y-2">
           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Secret key (nsec) — save this now
+            Recovery key — save this now
           </Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -275,7 +275,7 @@ export function NostrConnect() {
           disabled={loading}
         >
           <Zap className="mr-2 h-4 w-4" />
-          {loading ? "Connecting…" : "Connect with Nostr Extension"}
+          {loading ? "Connecting…" : "Sign in with browser key"}
         </Button>
       )}
 
@@ -298,7 +298,7 @@ export function NostrConnect() {
         disabled={loading}
       >
         <RefreshCw className="mr-2 h-4 w-4" />
-        Generate New Identity
+        Create organizer key
       </Button>
 
       <div className="relative">
@@ -307,7 +307,7 @@ export function NostrConnect() {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-background px-2 text-muted-foreground">
-            or paste existing key
+            or paste recovery key
           </span>
         </div>
       </div>
@@ -316,7 +316,7 @@ export function NostrConnect() {
         <Input
           id="nsec"
           type="password"
-          placeholder="nsec1…"
+          placeholder="Recovery key"
           value={nsecInput}
           onChange={(e) => setNsecInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && connectNsec()}
@@ -328,7 +328,7 @@ export function NostrConnect() {
           onClick={connectNsec}
           disabled={loading || !nsecInput.trim()}
         >
-          {loading ? "Verifying…" : "Connect with nsec key"}
+          {loading ? "Verifying…" : "Sign in with recovery key"}
         </Button>
       </div>
     </div>

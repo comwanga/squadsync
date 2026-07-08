@@ -35,7 +35,7 @@ export function CreateEventDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormInput, unknown, FormData>({
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(schema),
     defaultValues: { team_count: 5 },
   });
@@ -75,6 +75,19 @@ export function CreateEventDialog() {
             Set up a new event. You can edit these details later.
           </DialogDescription>
         </DialogHeader>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setValue("title", "Sample Community Workshop");
+            setValue("description", "A practice event for trying SquadSync with mixed skills and experience levels.");
+            setValue("team_count", 3);
+            setValue("participant_limit", 18);
+          }}
+        >
+          Use sample event
+        </Button>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="title">Event Name</Label>
@@ -86,7 +99,7 @@ export function CreateEventDialog() {
             <textarea
               id="description"
               rows={3}
-              placeholder="What is this event about? e.g. Build AI + satellite tools to improve crop yields."
+              placeholder="What is this event about? e.g. Build satellite tools to improve crop yields."
               className="flex min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               {...register("description")}
             />

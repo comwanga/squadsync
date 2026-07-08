@@ -48,16 +48,16 @@ describe("RegistrationForm", () => {
     expect(screen.getByRole("radio", { name: /advanced/i })).toBeInTheDocument();
   });
 
-  it("renders the optional npub field", () => {
+  it("renders the optional team notification field", () => {
     render(<RegistrationForm event={mockEvent} slug="abc123" />);
-    expect(screen.getByLabelText(/npub/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/team notification id/i)).toBeInTheDocument();
   });
 
-  it("includes npub in the submit body when provided", async () => {
+  it("includes the team notification ID in the submit body when provided", async () => {
     render(<RegistrationForm event={mockEvent} slug="abc123" />);
     fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "Alice" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "alice@test.com" } });
-    fireEvent.change(screen.getByLabelText(/npub/i), { target: { value: "npub1abc" } });
+    fireEvent.change(screen.getByLabelText(/team notification id/i), { target: { value: "npub1abc" } });
     fireEvent.click(screen.getByRole("button", { name: /join event/i }));
     const { fetchAPI } = await import("@/lib/api");
     await waitFor(() => expect(fetchAPI).toHaveBeenCalledWith(
