@@ -135,10 +135,10 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-white p-4">
+      <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm font-semibold">
+            <p className="text-sm font-semibold text-slate-100">
               {isDraft ? "Draft preview" : "Published teams"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -157,25 +157,25 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
             { label: "Experience balance", value: pct(averageMetric(allocation.teams, "skill_score")) },
             { label: "Strength balance", value: pct(averageMetric(allocation.teams, "role_balance_score")) },
           ].map(item => (
-            <div key={item.label} className="rounded-md border bg-slate-50 px-3 py-2">
+            <div key={item.label} className="rounded-md border border-slate-700 bg-slate-950/35 px-3 py-2">
               <p className="text-xs text-muted-foreground">{item.label}</p>
-              <p className="text-sm font-semibold">{item.value}</p>
+              <p className="text-sm font-semibold text-slate-100">{item.value}</p>
             </div>
           ))}
         </div>
       </div>
 
       {note && (
-        <div className="text-sm text-muted-foreground bg-violet-50 border border-violet-100 rounded-lg px-4 py-2">
+        <div className="rounded-lg border border-violet-500/30 bg-violet-950/30 px-4 py-2 text-sm text-violet-100">
           {note}
         </div>
       )}
       {warningEntries.length > 0 && (
-        <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-950/25 p-4">
+          <AlertTriangle className="h-4 w-4 text-amber-300 mt-0.5 flex-shrink-0" />
           <div className="text-sm">
-            <p className="font-medium text-amber-800">Constraint warnings</p>
-            <ul className="mt-1 space-y-0.5 text-amber-700">
+            <p className="font-medium text-amber-100">Constraint warnings</p>
+            <ul className="mt-1 space-y-0.5 text-amber-200">
               {warningEntries.map(([team, warnings]) =>
                 (warnings as string[]).map((w, i) => <li key={`${team}-${i}`}>{team}: {w}</li>)
               )}
