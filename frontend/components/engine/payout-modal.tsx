@@ -216,7 +216,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
             </p>
           </div>
 
-          <div className="rounded-md border bg-slate-50 p-3">
+          <div className="rounded-md border border-slate-700 bg-slate-950/35 p-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm font-medium">Recipient claim QR</p>
@@ -247,22 +247,22 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {claims.map(claim => (
-                    <div key={claim.id} className="rounded-md border bg-white p-2">
+                    <div key={claim.id} className="rounded-md border border-slate-700 bg-slate-900/60 p-2">
                       <div className="flex gap-2">
                         <div className="shrink-0 rounded bg-white p-1">
                           <QRCode value={claim.claim_url} size={72} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{claim.name}</p>
+                          <p className="truncate text-sm font-medium text-slate-100">{claim.name}</p>
                           <p className="font-mono text-xs text-muted-foreground">{claim.amount_sats} sats</p>
-                          <p className={claim.lightning_address ? "text-xs text-green-700" : "text-xs text-amber-700"}>
+                          <p className={claim.lightning_address ? "text-xs text-green-400" : "text-xs text-amber-300"}>
                             {claim.lightning_address ? "Claimed" : "Waiting for scan"}
                           </p>
                           <a
                             href={claim.claim_url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs text-primary underline-offset-2 hover:underline"
+                            className="text-xs text-blue-300 underline-offset-2 hover:text-blue-200 hover:underline"
                           >
                             Open link
                           </a>
@@ -306,7 +306,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
           </div>
 
           {preflight.length > 0 && (
-            <div className="rounded-md border bg-slate-50 p-3">
+            <div className="rounded-md border border-slate-700 bg-slate-950/35 p-3">
               <p className="text-sm font-medium">Dry-run preflight</p>
               <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                 {preflight.map((item, index) => <li key={index}>{item}</li>)}
