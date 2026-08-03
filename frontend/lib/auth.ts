@@ -45,7 +45,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken;
+      // Authenticated browser requests use the server-side backend proxy. Never
+      // serialize the backend bearer token into a client-visible session.
+      session.accessToken = token.accessToken ? "session" : undefined;
       session.pubkey = token.pubkey as string | undefined;
       return session;
     },

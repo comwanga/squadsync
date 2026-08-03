@@ -10,6 +10,7 @@ request around this exact invoice string, so the property we need is solely
 "does the returned preimage hash to this invoice's payment hash".
 """
 import hashlib
+import re
 
 _CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 _TIMESTAMP_GROUPS = 7      # 35-bit timestamp prefix
@@ -20,6 +21,27 @@ _PAYMENT_HASH_TAG = 1      # tagged field `p`
 
 class Bolt11Error(Exception):
     """The invoice could not be parsed far enough to read its payment hash."""
+
+
+def amount_msats(invoice: str) -> int:
+    """Return the exact BOLT11 amount in millisatoshis."""
+    hrp = invoice.strip().lower().rsplit("1", 1)[0]
+    match = re.fullmatch(r"ln(?:bcrt|bc|tb|sb)(\d+)([munp]?)", hrp)
+    if not match:
+        raise Bolt11Error("invoice has no explicit amount")
+    value = int(match.group(1))
+    multiplier = match.group(2)
+    if multiplier == "":
+        return value * 100_000_000_000
+    if multiplier == "m":
+        return value * 100_000_000
+    if multiplier == "u":
+        return value * 100_000
+    if multiplier == "n":
+        return value * 100
+    if value % 10:
+        raise Bolt11Error("pico-BTC amount is below millisatoshi precision")
+    return value // 10
 
 
 def _data_groups(invoice: str) -> list[int]:

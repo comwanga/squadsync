@@ -2,6 +2,7 @@ import secrets
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.event import Event, EventCoOrganizer
@@ -53,15 +54,27 @@ def create_event(db: Session, req: EventCreate, owner_id: UUID) -> Event:
     return event
 
 
-def list_events(db: Session, user_id: UUID, archived: bool = False) -> list[Event]:
+def list_events(
+    db: Session,
+    user_id: UUID,
+    archived: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[Event]:
     status_filter = (Event.status == "archived") if archived else (Event.status != "archived")
-    owned = db.query(Event).filter(Event.owner_id == user_id, status_filter).all()
-    co_event_ids = [
-        row.event_id for row in db.query(EventCoOrganizer).filter(EventCoOrganizer.user_id == user_id).all()
-    ]
-    co_events = db.query(Event).filter(Event.id.in_(co_event_ids), status_filter).all()
-    seen = {str(e.id) for e in owned}
-    return owned + [e for e in co_events if str(e.id) not in seen]
+    return (
+        db.query(Event)
+        .outerjoin(EventCoOrganizer, EventCoOrganizer.event_id == Event.id)
+        .filter(
+            status_filter,
+            or_(Event.owner_id == user_id, EventCoOrganizer.user_id == user_id),
+        )
+        .distinct()
+        .order_by(Event.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
 
 def get_event(db: Session, event_id: UUID, user_id: UUID) -> Event:
@@ -89,6 +102,8 @@ def delete_event(db: Session, event_id: UUID, user_id: UUID) -> EventOut:
     from app.models.allocation import Allocation, AllocationConfig
     from app.models.team import Team, TeamMember
     from app.models.participant import Participant
+    from app.models.payout import Payout, RewardClaim
+    from app.models.team_notification import TeamNotification
 
     event = _assert_organizer(db, event_id, user_id)
     if str(event.owner_id) != str(user_id):
@@ -97,6 +112,18 @@ def delete_event(db: Session, event_id: UUID, user_id: UUID) -> EventOut:
 
     alloc_ids = [a.id for a in db.query(Allocation).filter(Allocation.event_id == event_id).all()]
     if alloc_ids:
+        has_financial_history = (
+            db.query(Payout).filter(Payout.allocation_id.in_(alloc_ids)).first() is not None
+            or db.query(RewardClaim).filter(RewardClaim.allocation_id.in_(alloc_ids)).first() is not None
+        )
+        if has_financial_history:
+            raise HTTPException(
+                status_code=409,
+                detail="Events with reward or payout history must be archived, not deleted",
+            )
+        db.query(TeamNotification).filter(
+            TeamNotification.allocation_id.in_(alloc_ids)
+        ).delete(synchronize_session=False)
         team_ids = [t.id for t in db.query(Team).filter(Team.allocation_id.in_(alloc_ids)).all()]
         if team_ids:
             db.query(TeamMember).filter(TeamMember.team_id.in_(team_ids)).delete(synchronize_session=False)

@@ -70,9 +70,7 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
   async function downloadCsv(path: string, filename: string) {
     if (!session?.accessToken) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
-        headers: { Authorization: `Bearer ${session.accessToken}` },
-      });
+      const res = await fetch(`/api/backend${path}`);
       if (!res.ok) throw new Error(`Download failed (${res.status})`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -103,9 +101,8 @@ export function AttendeesTable({ eventId }: { eventId: string }) {
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/events/${eventId}/participants/import/csv`, {
+      const res = await fetch(`/api/backend/api/v1/events/${eventId}/participants/import/csv`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.accessToken}` },
         body: form,
       });
       const body = await res.json();

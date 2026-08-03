@@ -65,14 +65,16 @@ def test_register_other_with_text_is_pending(client, active_event):
     assert data["normalized_strength"] is None
 
 
-def test_duplicate_registration_updates_existing(client, active_event):
+def test_duplicate_registration_cannot_update_existing(client, auth_headers, active_event):
     slug = active_event["registration_slug"]
     payload = {"name": "Alice", "email": "alice@example.com", "primary_strength": "design", "experience_level": "beginner"}
     first = client.post(f"/api/v1/events/{slug}/register", json=payload)
     res = client.post(f"/api/v1/events/{slug}/register", json={**payload, "name": "Alice Updated"})
-    assert res.status_code == 200
-    assert res.json()["id"] == first.json()["id"]
-    assert res.json()["name"] == "Alice Updated"
+    assert first.status_code == 201
+    assert res.status_code == 409
+
+    participants = client.get(f"/api/v1/events/{active_event['id']}/participants", headers=auth_headers).json()
+    assert participants[0]["name"] == "Alice"
 
 
 def test_list_participants(client, auth_headers, active_event):
@@ -94,6 +96,23 @@ def test_delete_participant(client, auth_headers, active_event):
     assert res.status_code == 200
     remaining = client.get(f"/api/v1/events/{active_event['id']}/participants", headers=auth_headers).json()
     assert len(remaining) == 0
+
+
+def test_delete_allocated_participant_is_rejected(client, auth_headers, active_event):
+    slug = active_event["registration_slug"]
+    participants = []
+    for i in range(3):
+        participants.append(client.post(f"/api/v1/events/{slug}/register", json={
+            "name": f"P{i}", "email": f"p{i}@example.com",
+            "primary_strength": "technical", "experience_level": "beginner",
+        }).json())
+    client.post(f"/api/v1/events/{active_event['id']}/allocate", headers=auth_headers)
+
+    res = client.delete(
+        f"/api/v1/events/{active_event['id']}/participants/{participants[0]['id']}",
+        headers=auth_headers,
+    )
+    assert res.status_code == 409
 
 
 # --- B2b: optional npub at registration ---

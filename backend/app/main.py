@@ -1,9 +1,12 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.database import get_db
 from app.api.v1 import auth, events, participants, allocation, teams, export, public, feedback, payouts, rationale
 import app.models  # noqa: F401
 
@@ -38,3 +41,9 @@ app.include_router(rationale.router, prefix="/api/v1/allocations", tags=["ration
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/ready")
+def ready(db: Session = Depends(get_db)):
+    db.execute(text("SELECT 1"))
+    return {"status": "ready"}

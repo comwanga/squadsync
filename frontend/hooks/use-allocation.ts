@@ -5,8 +5,6 @@ import { fetchAPI } from "@/lib/api";
 export interface AllocationConfig {
   id: string;
   event_id: string;
-  weight_experience: number;
-  weight_skill: number;
   role_constraints: Record<string, number>;
 }
 
@@ -54,11 +52,11 @@ function useToken() {
 
 export function useAllocationConfig(eventId: string) {
   const { token, isSessionLoading } = useToken();
-  const { data, isLoading } = useSWR(
+  const { data, error, isLoading } = useSWR(
     token ? [`/api/v1/events/${eventId}/config`, token] : null,
     ([path, t]) => fetchAPI<AllocationConfig>(path, { token: t })
   );
-  return { config: data, isLoading: isLoading || isSessionLoading };
+  return { config: data, error, isLoading: isLoading || isSessionLoading };
 }
 
 export async function saveAllocationConfig(token: string, eventId: string, payload: Partial<AllocationConfig>) {

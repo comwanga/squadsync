@@ -1,19 +1,27 @@
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from app.core.taxonomy import CONCRETE_STRENGTHS
 
 
 class AllocationConfigIn(BaseModel):
-    weight_experience: float = 0.5
-    weight_skill: float = 0.5
-    role_constraints: dict[str, int] = {}
+    role_constraints: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("role_constraints")
+    @classmethod
+    def validate_role_constraints(cls, value: dict[str, int]) -> dict[str, int]:
+        invalid_roles = set(value) - set(CONCRETE_STRENGTHS)
+        if invalid_roles:
+            raise ValueError(f"Unknown strength categories: {', '.join(sorted(invalid_roles))}")
+        if any(count < 1 or count > 10 for count in value.values()):
+            raise ValueError("Role constraint counts must be between 1 and 10")
+        return value
 
 
 class AllocationConfigOut(BaseModel):
     id: UUID
     event_id: UUID
-    weight_experience: float
-    weight_skill: float
     role_constraints: dict
 
     model_config = {"from_attributes": True}

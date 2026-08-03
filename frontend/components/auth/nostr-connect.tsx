@@ -4,14 +4,12 @@ import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Zap, Key, RefreshCw, Eye, EyeOff, Copy, Check, ArrowLeft } from "lucide-react";
+import { Zap, RefreshCw, Eye, EyeOff, Copy, Check, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-const SK_KEY = "squadsync:nostr_sk";
-
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -46,7 +44,6 @@ export function NostrConnect() {
   const [view, setView] = useState<View>("options");
   const [loading, setLoading] = useState(false);
   const [hasExtension, setHasExtension] = useState(false);
-  const [storedNpub, setStoredNpub] = useState<string | null>(null);
   const [nsecInput, setNsecInput] = useState("");
   const [showNsec, setShowNsec] = useState(false);
   const [copied, setCopied] = useState<"npub" | "nsec" | null>(null);
@@ -58,18 +55,9 @@ export function NostrConnect() {
   } | null>(null);
 
   useEffect(() => {
-    // Browser-only capability detection must run after mount to stay SSR-safe
-    // (window/localStorage are unavailable during server render).
+    // Browser-only capability detection must run after mount to stay SSR-safe.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasExtension(typeof window !== "undefined" && "nostr" in window);
-    const skHex = localStorage.getItem(SK_KEY);
-    if (skHex) {
-      import("nostr-tools").then(({ getPublicKey }) =>
-        import("nostr-tools/nip19").then(({ npubEncode }) =>
-          setStoredNpub(npubEncode(getPublicKey(hexToBytes(skHex))))
-        )
-      );
-    }
   }, []);
 
   const doSignIn = async (pubkey: string, signedEvent: object) => {
@@ -113,15 +101,6 @@ export function NostrConnect() {
     }
   };
 
-  const connectStoredKey = async () => {
-    const skHex = localStorage.getItem(SK_KEY);
-    if (!skHex) return;
-    const { getPublicKey } = await import("nostr-tools");
-    const pk = getPublicKey(hexToBytes(skHex));
-    const event = await buildNip98Event(skHex);
-    await doSignIn(pk, event);
-  };
-
   const generateKey = async () => {
     const { generateSecretKey, getPublicKey } = await import("nostr-tools");
     const { nsecEncode, npubEncode } = await import("nostr-tools/nip19");
@@ -139,7 +118,6 @@ export function NostrConnect() {
 
   const connectGenerated = async () => {
     if (!generated) return;
-    localStorage.setItem(SK_KEY, generated.skHex);
     const event = await buildNip98Event(generated.skHex);
     await doSignIn(generated.pk, event);
   };
@@ -158,7 +136,6 @@ export function NostrConnect() {
       const sk = decoded.data as Uint8Array;
       const pk = getPublicKey(sk);
       const skHex = bytesToHex(sk);
-      localStorage.setItem(SK_KEY, skHex);
       const event = await buildNip98Event(skHex);
       await doSignIn(pk, event);
     } catch {
@@ -276,18 +253,6 @@ export function NostrConnect() {
         >
           <Zap className="mr-2 h-4 w-4" />
           {loading ? "Connecting…" : "Sign in with browser key"}
-        </Button>
-      )}
-
-      {storedNpub && (
-        <Button
-          className="w-full font-mono text-xs"
-          variant="secondary"
-          onClick={connectStoredKey}
-          disabled={loading}
-        >
-          <Key className="mr-2 h-4 w-4 shrink-0" />
-          {loading ? "Connecting…" : `Resume as ${storedNpub.slice(0, 12)}…`}
         </Button>
       )}
 

@@ -24,7 +24,7 @@ def _bytes_to_5bit(data: bytes) -> list[int]:
     return out
 
 
-def make_invoice(payment_hash_hex: str) -> str:
+def make_invoice(payment_hash_hex: str, amount_sats: int | None = None) -> str:
     """Return a syntactically-walkable bolt11 carrying `payment_hash_hex` (32-byte hex)."""
     ph_groups = _bytes_to_5bit(bytes.fromhex(payment_hash_hex))  # 32 bytes -> 52 groups
     assert len(ph_groups) == 52
@@ -33,10 +33,11 @@ def make_invoice(payment_hash_hex: str) -> str:
     signature = [0] * 104
     checksum = [0] * 6  # decoder drops these; value is irrelevant
     groups = timestamp + tag + ph_groups + signature + checksum
-    return "lnbc1" + "".join(_CHARSET[g] for g in groups)
+    amount = "" if amount_sats is None else f"{amount_sats * 10}n"
+    return f"lnbc{amount}1" + "".join(_CHARSET[g] for g in groups)
 
 
-def invoice_for_preimage(preimage_hex: str) -> str:
+def invoice_for_preimage(preimage_hex: str, amount_sats: int | None = None) -> str:
     """Build an invoice whose payment hash is sha256(preimage)."""
     ph = hashlib.sha256(bytes.fromhex(preimage_hex)).hexdigest()
-    return make_invoice(ph)
+    return make_invoice(ph, amount_sats)

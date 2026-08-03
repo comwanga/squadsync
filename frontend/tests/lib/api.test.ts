@@ -26,15 +26,16 @@ describe("fetchAPI", () => {
     expect(result).toEqual({ data: "ok" });
   });
 
-  it("includes Authorization header when token provided", async () => {
+  it("uses the same-origin backend proxy when a session marker is provided", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({}),
     });
 
-    await fetchAPI("/test", { token: "my-jwt" });
-    const [, options] = mockFetch.mock.calls[0];
-    expect(options.headers["Authorization"]).toBe("Bearer my-jwt");
+    await fetchAPI("/test", { token: "session" });
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/backend/test");
+    expect(options.headers["Authorization"]).toBeUndefined();
   });
 
   it("throws error with detail message on non-OK response", async () => {
@@ -45,6 +46,16 @@ describe("fetchAPI", () => {
     });
 
     await expect(fetchAPI("/test")).rejects.toThrow("Bad request");
+  });
+
+  it("formats FastAPI validation errors", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({ detail: [{ msg: "Invalid address" }] }),
+    });
+
+    await expect(fetchAPI("/test")).rejects.toThrow("Invalid address");
   });
 
   it("sends POST body as JSON", async () => {

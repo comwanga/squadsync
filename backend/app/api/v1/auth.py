@@ -4,13 +4,21 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.schemas.auth import NostrAuthRequest, TokenResponse, UserOut
 from app.services.auth_service import nostr_login
 
 router = APIRouter()
 
 
-@router.post("/nostr", response_model=TokenResponse)
+@router.post(
+    "/nostr",
+    response_model=TokenResponse,
+    # NextAuth performs this exchange server-side, so many users can share one
+    # frontend egress IP. Keep this above normal event traffic; edge limits add
+    # the stricter per-browser layer.
+    dependencies=[Depends(rate_limit("nostr-auth", requests=120))],
+)
 def nostr_auth(req: NostrAuthRequest, request: Request, db: Session = Depends(get_db)):
     # Behind a proxy the live request URL is the internal http URL, not the public
     # https URL the client signed. Prefer the configured canonical URL when set.

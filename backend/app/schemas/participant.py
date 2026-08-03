@@ -22,6 +22,11 @@ class ParticipantRegister(BaseModel):
     tech_stack: list[str] = []
     interests: list[str] = []
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def _normalize_email(cls, v):
+        return str(v).strip().lower()
+
     @field_validator("lightning_address", mode="before")
     @classmethod
     def _normalize_lightning_address(cls, v):

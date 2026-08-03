@@ -161,6 +161,16 @@ def test_snapshot_hash_deterministic(db, event, config):
     assert a1.snapshot_hash == a2.snapshot_hash
 
 
+def test_snapshot_hash_changes_when_participant_inputs_change(db, event, config):
+    participants = [add_participant(db, event.id, "intermediate", "technical") for _ in range(6)]
+    first = run_allocation(db, event.id, config)
+    participants[0].experience_level = "advanced"
+    db.commit()
+
+    second = run_allocation(db, event.id, config)
+    assert first.snapshot_hash != second.snapshot_hash
+
+
 def _memberships(db, allocation_id):
     """Return team membership as a set of frozensets of participant ids (order-free)."""
     teams = db.query(Team).filter(Team.allocation_id == allocation_id).all()

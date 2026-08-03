@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # Hard ceiling on a single team payout (sats). A safety net against a
     # fat-finger (extra zeros) — the request is refused before anything is sent.
     PAYOUT_MAX_SATS: int = 5_000_000
+    CSV_IMPORT_MAX_BYTES: int = 2_000_000
+    CSV_IMPORT_MAX_ROWS: int = 5_000
     # Optional: enables AI normalization of free-text "Other" strengths.
     # When unset, allocation falls back to a deterministic slug per Other entry.
     ANTHROPIC_API_KEY: str | None = None

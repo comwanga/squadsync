@@ -17,7 +17,7 @@ services:
     rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    healthCheckPath: /health
+    healthCheckPath: /ready
     envVars:
       - key: DATABASE_URL
         fromDatabase:
