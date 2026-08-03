@@ -15,7 +15,8 @@ async function expectRouteOk(page: Page, path: string) {
 /** Sign in by generating a fresh Nostr identity (the no-extension path). */
 async function login(page: Page) {
   await page.goto("/login");
-  await page.getByRole("button", { name: /Generate New Identity/i }).click();
+  await expect(page.getByRole("img", { name: "SquadSync" })).toBeVisible();
+  await page.getByRole("button", { name: /Create organizer key/i }).click();
   await page.getByRole("button", { name: /Sign In/i }).click();
   await page.waitForURL("**/dashboard", { timeout: 30_000 });
 }

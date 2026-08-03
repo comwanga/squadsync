@@ -1,8 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const frontendURL = "http://localhost:3100";
+const backendURL = "http://localhost:8100";
+
 /**
  * Route smoke tests. Boots the backend (migrated, SQLite) and the Next dev
- * server, signs in with a real generated Nostr identity, then visits every
+ * production server, signs in with a real generated Nostr identity, then visits every
  * nav destination and key route asserting none 404 or 500.
  *
  * The dashboard 404 class of bug only surfaces when authenticated — logged out,
@@ -16,10 +19,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
-  timeout: 60_000,
+  // A cold production build plus the multi-route flow can exceed one minute on CI.
+  timeout: 180_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: frontendURL,
     trace: "on-first-retry",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
@@ -29,9 +33,9 @@ export default defineConfig({
       // NIP-98 binding uses the live request URL (http://localhost:8000/...),
       // which matches the URL the frontend signs.
       command:
-        "python -m alembic upgrade head && python -m uvicorn app.main:app --port 8000",
+        "python -m alembic upgrade head && python -m uvicorn app.main:app --port 8100",
       cwd: "../backend",
-      url: "http://localhost:8000/health",
+      url: `${backendURL}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
       env: {
@@ -40,14 +44,14 @@ export default defineConfig({
       },
     },
     {
-      command: "npm run dev",
-      url: "http://localhost:3000",
+      command: "npm run build && npm run start -- --hostname 0.0.0.0 --port 3100",
+      url: frontendURL,
       reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
+      timeout: 240_000,
       env: {
-        NEXT_PUBLIC_API_URL: "http://localhost:8000",
+        NEXT_PUBLIC_API_URL: backendURL,
         AUTH_SECRET: "e2e-test-secret-not-for-production",
-        AUTH_URL: "http://localhost:3000",
+        AUTH_URL: frontendURL,
       },
     },
   ],
