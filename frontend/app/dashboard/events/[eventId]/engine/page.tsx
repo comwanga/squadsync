@@ -17,13 +17,18 @@ export default function EnginePage({ params }: { params: Promise<{ eventId: stri
   // the just-run or just-published result shows immediately.
   const [fresh, setFresh] = useState<Allocation | null>(null);
 
-  const { data: participants = [] } = useSWR(
+  const { data: participants = [], error: participantsError, isLoading: participantsLoading } = useSWR(
     session?.accessToken ? [`/api/v1/events/${eventId}/participants`, session.accessToken] : null,
     ([path, token]) => fetchAPI<{ id: string }[]>(path, { token })
   );
 
   // Restore the most recent allocation so results survive a page refresh (latest first).
-  const { data: allocations = [], mutate: mutateAllocations } = useSWR(
+  const {
+    data: allocations = [],
+    error: allocationsError,
+    isLoading: allocationsLoading,
+    mutate: mutateAllocations,
+  } = useSWR(
     session?.accessToken ? [`/api/v1/events/${eventId}/allocations`, session.accessToken] : null,
     ([path, token]) => fetchAPI<Allocation[]>(path, { token })
   );
@@ -48,7 +53,15 @@ export default function EnginePage({ params }: { params: Promise<{ eventId: stri
         <p className="text-sm text-muted-foreground">Preview balanced teams from registered participants</p>
       </div>
 
-      {!allocation ? (
+      {(participantsError || allocationsError) && (
+        <div className="rounded-lg border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-200">
+          Team data could not be loaded. Refresh before generating or publishing teams.
+        </div>
+      )}
+
+      {participantsLoading || allocationsLoading ? (
+        <div className="h-48 animate-pulse rounded-lg bg-slate-900/60" />
+      ) : participantsError || allocationsError ? null : !allocation ? (
         <RunPanel
           eventId={eventId}
           participantCount={participants.length}

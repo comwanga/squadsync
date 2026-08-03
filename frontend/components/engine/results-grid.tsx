@@ -107,8 +107,7 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
     if (!session?.accessToken) return;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/allocations/${allocation.id}/export/csv`,
-        { headers: { Authorization: `Bearer ${session.accessToken}` } }
+        `/api/backend/api/v1/allocations/${allocation.id}/export/csv`
       );
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
       const blob = await res.blob();
@@ -124,13 +123,17 @@ export function ResultsGrid({ allocation, eventId, onPublished, onChanged }: Res
   };
 
   const handleCopyLink = async () => {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/allocations/${allocation.id}/export/link`,
-      { headers: { Authorization: `Bearer ${session?.accessToken}` } }
-    );
-    const { url } = await res.json();
-    await navigator.clipboard.writeText(url);
-    toast.success("Share link copied!");
+    try {
+      const res = await fetch(
+        `/api/backend/api/v1/allocations/${allocation.id}/export/link`
+      );
+      if (!res.ok) throw new Error(`Share link failed (${res.status})`);
+      const { url } = await res.json();
+      await navigator.clipboard.writeText(url);
+      toast.success("Share link copied!");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not copy share link");
+    }
   };
 
   return (

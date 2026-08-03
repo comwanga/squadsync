@@ -6,9 +6,7 @@ import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { useAllocationConfig, saveAllocationConfig, type AllocationConfig } from "@/hooks/use-allocation";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -18,26 +16,28 @@ import { CONCRETE_STRENGTHS } from "@/lib/taxonomy";
 interface Constraint { role: string; min: number; }
 
 export function ConfigForm({ eventId }: { eventId: string }) {
-  const { config, isLoading } = useAllocationConfig(eventId);
+  const { config, error, isLoading } = useAllocationConfig(eventId);
 
   if (isLoading) return <div className="animate-pulse h-64 bg-slate-100 rounded-lg" />;
+  if (error || !config) {
+    return (
+      <div className="rounded-lg border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-200">
+        Configuration could not be loaded. Refresh before making changes.
+      </div>
+    );
+  }
 
   // Remount (and re-seed local state) whenever the loaded config identity changes,
   // instead of syncing fetched data into state via an effect.
-  return <ConfigFormFields key={config?.id ?? eventId} eventId={eventId} initial={config} />;
+  return <ConfigFormFields key={config.id} eventId={eventId} initial={config} />;
 }
 
-function ConfigFormFields({ eventId, initial }: { eventId: string; initial?: AllocationConfig }) {
+function ConfigFormFields({ eventId, initial }: { eventId: string; initial: AllocationConfig }) {
   const { data: session } = useSession();
-  const [wExp, setWExp] = useState(initial?.weight_experience ?? 0.5);
   const [constraints, setConstraints] = useState<Constraint[]>(
-    initial
-      ? Object.entries(initial.role_constraints).map(([role, min]) => ({ role, min: min as number }))
-      : []
+    Object.entries(initial.role_constraints).map(([role, min]) => ({ role, min: min as number }))
   );
   const [saving, setSaving] = useState(false);
-
-  const wSkill = Math.round((1 - wExp) * 100) / 100;
 
   const addConstraint = () => setConstraints(c => [...c, { role: "technical", min: 1 }]);
   const removeConstraint = (i: number) => setConstraints(c => c.filter((_, idx) => idx !== i));
@@ -50,8 +50,6 @@ function ConfigFormFields({ eventId, initial }: { eventId: string; initial?: All
     try {
       const role_constraints = Object.fromEntries(constraints.map(c => [c.role, c.min]));
       await saveAllocationConfig(session.accessToken, eventId, {
-        weight_experience: wExp,
-        weight_skill: wSkill,
         role_constraints,
       });
       toast.success("Configuration saved");
@@ -64,31 +62,6 @@ function ConfigFormFields({ eventId, initial }: { eventId: string; initial?: All
 
   return (
     <div className="space-y-6 max-w-xl">
-      <Card>
-        <CardHeader><CardTitle className="text-base">Balancing Weights</CardTitle></CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <Label>Experience Weight</Label>
-              <span className="text-sm font-mono">{(wExp * 100).toFixed(0)}%</span>
-            </div>
-            <Slider
-              value={[wExp * 100]}
-              min={10} max={90} step={5}
-              onValueChange={([v]) => setWExp(v / 100)}
-            />
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <Label>Skill Weight</Label>
-              <span className="text-sm font-mono">{(wSkill * 100).toFixed(0)}%</span>
-            </div>
-            <Slider value={[wSkill * 100]} min={10} max={90} step={5} disabled className="opacity-60" />
-            <p className="text-xs text-muted-foreground">Auto-calculated as 100% minus the value above</p>
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -115,7 +88,11 @@ function ConfigFormFields({ eventId, initial }: { eventId: string; initial?: All
               <Input
                 type="number" min={1} max={10}
                 value={c.min}
-                onChange={e => updateConstraint(i, "min", Number(e.target.value))}
+                onChange={e => updateConstraint(
+                  i,
+                  "min",
+                  Math.min(10, Math.max(1, Number(e.target.value) || 1)),
+                )}
                 className="w-16"
               />
               <Button variant="ghost" size="icon" onClick={() => removeConstraint(i)}>

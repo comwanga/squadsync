@@ -52,3 +52,13 @@ def test_participant_csv_export(client, auth_headers):
     assert "text/csv" in res.headers["content-type"]
     assert "ada@example.com" in res.text
     assert "primary_strength" in res.text
+
+
+def test_participant_csv_import_rejects_oversized_file(client, auth_headers):
+    event = _event(client, auth_headers)
+    res = client.post(
+        f"/api/v1/events/{event['id']}/participants/import/csv",
+        headers=auth_headers,
+        files={"file": ("participants.csv", b"x" * 2_000_001, "text/csv")},
+    )
+    assert res.status_code == 413

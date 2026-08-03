@@ -56,7 +56,7 @@ def test_register_rejects_other_without_text(client, auth_headers):
 
 # --- H4: duplicate email dedup ---
 
-def test_duplicate_email_updates_existing_participant(client, auth_headers):
+def test_duplicate_email_cannot_update_existing_participant(client, auth_headers):
     event = _active_event(client, auth_headers)
     slug = event["registration_slug"]
     body = {
@@ -68,7 +68,32 @@ def test_duplicate_email_updates_existing_participant(client, auth_headers):
     second = client.post(f"/api/v1/events/{slug}/register", json={
         **body, "name": "B", "primary_strength": "design", "experience_level": "advanced",
     })
-    assert second.status_code == 200
-    assert second.json()["id"] == first.json()["id"]
-    assert second.json()["name"] == "B"
-    assert second.json()["primary_strength"] == "design"
+    assert second.status_code == 409
+
+    participants = client.get(
+        f"/api/v1/events/{event['id']}/participants", headers=auth_headers
+    ).json()
+    assert participants[0]["name"] == "A"
+    assert participants[0]["primary_strength"] == "technical"
+
+
+def test_allocation_config_rejects_invalid_constraints(client, auth_headers):
+    event = _active_event(client, auth_headers)
+    invalid_role = client.put(
+        f"/api/v1/events/{event['id']}/config",
+        headers=auth_headers,
+        json={"role_constraints": {"astronaut": 1}},
+    )
+    invalid_count = client.put(
+        f"/api/v1/events/{event['id']}/config",
+        headers=auth_headers,
+        json={"role_constraints": {"technical": 0}},
+    )
+    assert invalid_role.status_code == 422
+    assert invalid_count.status_code == 422
+
+
+def test_readiness_checks_database(client):
+    res = client.get("/ready")
+    assert res.status_code == 200
+    assert res.json() == {"status": "ready"}

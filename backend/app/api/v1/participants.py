@@ -6,6 +6,8 @@ from fastapi.responses import Response as RawResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import settings
+from app.core.rate_limit import rate_limit
 from app.models.user import User
 from app.schemas.participant import ParticipantRegister, ParticipantOut, EventPublicInfo, ParticipantCategoryUpdate, ParticipantImportSummary
 from app.services.registration_service import (
@@ -16,12 +18,20 @@ from app.services.registration_service import (
 router = APIRouter()
 
 
-@router.get("/{slug}/info", response_model=EventPublicInfo)
+@router.get(
+    "/{slug}/info",
+    response_model=EventPublicInfo,
+    dependencies=[Depends(rate_limit("public-event-info", requests=60))],
+)
 def public_info(slug: str, db: Session = Depends(get_db)):
     return get_public_event(db, slug)
 
 
-@router.post("/{slug}/register", response_model=ParticipantOut)
+@router.post(
+    "/{slug}/register",
+    response_model=ParticipantOut,
+    dependencies=[Depends(rate_limit("participant-registration", requests=20))],
+)
 def register(slug: str, req: ParticipantRegister, response: Response, db: Session = Depends(get_db)):
     participant, created = register_participant(db, slug, req)
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
@@ -33,10 +43,12 @@ def list_all(
     event_id: UUID,
     strength: Optional[str] = Query(None),
     experience: Optional[str] = Query(None),
+    limit: int = Query(500, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return list_participants(db, event_id, current_user.id, strength, experience)
+    return list_participants(db, event_id, current_user.id, strength, experience, limit, offset)
 
 
 @router.get("/{event_id}/participants/export/csv")
@@ -58,7 +70,18 @@ async def import_participants(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    content = await file.read()
+    if file.content_type not in {"text/csv", "application/csv", "application/vnd.ms-excel"}:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=415, detail="Upload must be a CSV file")
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await file.read(64 * 1024):
+        size += len(chunk)
+        if size > settings.CSV_IMPORT_MAX_BYTES:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=413, detail="CSV file is too large")
+        chunks.append(chunk)
+    content = b"".join(chunks)
     return import_participants_csv(db, event_id, current_user.id, content)
 
 

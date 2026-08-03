@@ -1,4 +1,5 @@
 import hashlib
+import json
 import statistics
 from collections import Counter
 from uuid import UUID
@@ -124,9 +125,24 @@ def run_allocation(db: Session, event_id: UUID, config: AllocationConfig, seed: 
         p.composite_score = compute_composite_score(p.experience_level)
     db.flush()
 
-    # Snapshot hash
-    sorted_ids = sorted([str(p.id) for p in participants])
-    snapshot_hash = hashlib.sha256(",".join(sorted_ids).encode()).hexdigest()
+    # Hash every input that can change the result, including the engine version.
+    snapshot = {
+        "engine_version": 2,
+        "team_count": n_teams,
+        "seed": seed,
+        "role_constraints": config.role_constraints or {},
+        "participants": sorted([
+            {
+                "id": str(p.id),
+                "experience_level": p.experience_level,
+                "strength": p.normalized_strength or p.primary_strength,
+            }
+            for p in participants
+        ], key=lambda participant: participant["id"]),
+    }
+    snapshot_hash = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
     # Team buckets
     buckets: list[dict] = [

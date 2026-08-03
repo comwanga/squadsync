@@ -8,8 +8,8 @@ from tests.test_payout_endpoint import _setup_team
 from tests.lightning_helpers import invoice_for_preimage
 
 
-def _report_result(client, headers, payout_id, item_id, preimage):
-    invoice = invoice_for_preimage(preimage)
+def _report_result(client, headers, payout_id, item_id, amount_sats, preimage):
+    invoice = invoice_for_preimage(preimage, amount_sats)
     return client.post(
         f"/api/v1/allocations/payouts/{payout_id}/items/{item_id}/result",
         headers=headers, json={"bolt11": invoice, "preimage": preimage},
@@ -37,7 +37,9 @@ def test_reporting_valid_preimages_marks_paid_and_completes(client, auth_headers
     final = None
     for item in payout["items"]:
         preimage = hashlib.sha256(item["id"].encode()).hexdigest()
-        res = _report_result(client, auth_headers, payout["id"], item["id"], preimage)
+        res = _report_result(
+            client, auth_headers, payout["id"], item["id"], item["amount_sats"], preimage
+        )
         assert res.status_code == 200, res.text
         final = res.json()
 
@@ -54,7 +56,10 @@ def test_reporting_mismatched_preimage_is_unverified(client, auth_headers):
     res = client.post(
         f"/api/v1/allocations/payouts/{payout['id']}/items/{item['id']}/result",
         headers=auth_headers,
-        json={"bolt11": invoice_for_preimage("11" * 32), "preimage": "22" * 32},
+        json={
+            "bolt11": invoice_for_preimage("11" * 32, item["amount_sats"]),
+            "preimage": "22" * 32,
+        },
     )
     assert res.status_code == 200, res.text
     reported = next(i for i in res.json()["items"] if i["id"] == item["id"])
@@ -82,11 +87,15 @@ def test_reporting_result_is_idempotent_on_paid_item(client, auth_headers):
                          json={"team_id": str(team_id), "total_sats": 210}).json()
     item = payout["items"][0]
     preimage = hashlib.sha256(item["id"].encode()).hexdigest()
-    first = _report_result(client, auth_headers, payout["id"], item["id"], preimage).json()
+    first = _report_result(
+        client, auth_headers, payout["id"], item["id"], item["amount_sats"], preimage
+    ).json()
     paid_preimage = next(i for i in first["items"] if i["id"] == item["id"])["preimage"]
 
     # A duplicate report (client retry) must not change or re-count the paid item.
-    second = _report_result(client, auth_headers, payout["id"], item["id"], preimage).json()
+    second = _report_result(
+        client, auth_headers, payout["id"], item["id"], item["amount_sats"], preimage
+    ).json()
     again = next(i for i in second["items"] if i["id"] == item["id"])
     assert again["status"] == "paid"
     assert again["preimage"] == paid_preimage
@@ -110,6 +119,30 @@ def test_result_endpoint_requires_organizer(client, auth_headers, nostr_privkey)
     res = client.post(
         f"/api/v1/allocations/payouts/{payout['id']}/items/{item['id']}/result",
         headers={"Authorization": f"Bearer {token}"},
-        json={"bolt11": invoice_for_preimage("11" * 32), "preimage": "11" * 32},
+        json={
+            "bolt11": invoice_for_preimage("11" * 32, item["amount_sats"]),
+            "preimage": "11" * 32,
+        },
     )
     assert res.status_code in (401, 403, 404)
+
+
+def test_reporting_wrong_invoice_amount_is_unverified(client, auth_headers):
+    _, allocation_id, team_id, _ = _setup_team(client, auth_headers, all_have_addresses=True)
+    payout = client.post(
+        f"/api/v1/allocations/{allocation_id}/payouts",
+        headers=auth_headers,
+        json={"team_id": str(team_id), "total_sats": 210},
+    ).json()
+    item = payout["items"][0]
+    preimage = "33" * 32
+    res = client.post(
+        f"/api/v1/allocations/payouts/{payout['id']}/items/{item['id']}/result",
+        headers=auth_headers,
+        json={
+            "bolt11": invoice_for_preimage(preimage, item["amount_sats"] + 1),
+            "preimage": preimage,
+        },
+    )
+    reported = next(entry for entry in res.json()["items"] if entry["id"] == item["id"])
+    assert reported["status"] == "unverified"

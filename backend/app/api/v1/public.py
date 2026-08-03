@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.models.allocation import Allocation
 from app.models.participant import Participant
 from app.models.team import Team, TeamMember
@@ -27,7 +28,11 @@ def _get_published_allocation(db: Session, allocation_id: UUID) -> Allocation:
     return allocation
 
 
-@router.get("/allocations/{allocation_id}", response_model=PublicAllocationOut)
+@router.get(
+    "/allocations/{allocation_id}",
+    response_model=PublicAllocationOut,
+    dependencies=[Depends(rate_limit("public-allocation", requests=60))],
+)
 def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
     """Unauthenticated read of a *published* allocation for participant share links.
 
@@ -37,14 +42,20 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
     allocation = _get_published_allocation(db, allocation_id)
 
     teams_orm = db.query(Team).filter(Team.allocation_id == allocation.id).all()
-    teams = []
-    for team in teams_orm:
-        members = (
-            db.query(Participant)
-            .join(TeamMember, Participant.id == TeamMember.participant_id)
-            .filter(TeamMember.team_id == team.id)
+    team_ids = [team.id for team in teams_orm]
+    members_by_team: dict[UUID, list[Participant]] = {team_id: [] for team_id in team_ids}
+    if team_ids:
+        member_rows = (
+            db.query(TeamMember.team_id, Participant)
+            .join(Participant, Participant.id == TeamMember.participant_id)
+            .filter(TeamMember.team_id.in_(team_ids))
             .all()
         )
+        for team_id, participant in member_rows:
+            members_by_team[team_id].append(participant)
+    teams = []
+    for team in teams_orm:
+        members = members_by_team[team.id]
         teams.append(PublicTeam(
             id=team.id,
             name=team.name,
@@ -53,8 +64,14 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
             rationale=team.rationale,
         ))
     payouts = []
-    for p in db.query(Payout).filter(Payout.allocation_id == allocation.id).all():
-        items = db.query(PayoutItem).filter(PayoutItem.payout_id == p.id).all()
+    payout_rows = db.query(Payout).filter(Payout.allocation_id == allocation.id).all()
+    payout_ids = [payout.id for payout in payout_rows]
+    items_by_payout: dict[UUID, list[PayoutItem]] = {payout_id: [] for payout_id in payout_ids}
+    if payout_ids:
+        for item in db.query(PayoutItem).filter(PayoutItem.payout_id.in_(payout_ids)).all():
+            items_by_payout[item.payout_id].append(item)
+    for p in payout_rows:
+        items = items_by_payout[p.id]
         payouts.append(PublicPayoutSummary(
             team_label=p.team_label, total_sats=p.total_sats, status=p.status,
             paid_count=sum(1 for i in items if i.status == "paid"), member_count=len(items),
@@ -62,7 +79,11 @@ def public_allocation(allocation_id: UUID, db: Session = Depends(get_db)):
     return PublicAllocationOut(id=allocation.id, status=allocation.status, teams=teams, payouts=payouts)
 
 
-@router.post("/allocations/{allocation_id}/find-team", response_model=PublicTeam)
+@router.post(
+    "/allocations/{allocation_id}/find-team",
+    response_model=PublicTeam,
+    dependencies=[Depends(rate_limit("find-team", requests=20))],
+)
 def find_my_team(allocation_id: UUID, req: FindTeamRequest, db: Session = Depends(get_db)):
     """Public lookup: which team is this registered email on? Published-only.
 

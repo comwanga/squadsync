@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.event import Event
 from app.models.participant import Participant
+from app.core.config import settings
 from app.schemas.participant import ParticipantRegister
 from app.services.allocation_engine import compute_composite_score
 
@@ -60,14 +61,19 @@ def register_participant(db: Session, slug: str, req: ParticipantRegister) -> tu
         Participant.email == str(req.email),
     ).first()
 
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="That email is already registered. Contact the organizer to make changes.",
+        )
+
     if event.participant_limit:
         count = db.query(Participant).filter(Participant.event_id == event.id).count()
-        if not existing and count >= event.participant_limit:
+        if count >= event.participant_limit:
             raise HTTPException(status_code=400, detail="Event is full")
 
-    participant = _apply_registration(existing, event.id, req)
-    if not existing:
-        db.add(participant)
+    participant = _apply_registration(None, event.id, req)
+    db.add(participant)
     # The unique (event_id, email) constraint is the authoritative dedup guard.
     try:
         db.commit()
@@ -75,10 +81,18 @@ def register_participant(db: Session, slug: str, req: ParticipantRegister) -> tu
         db.rollback()
         raise HTTPException(status_code=409, detail="That email is already registered. Refresh and try again.")
     db.refresh(participant)
-    return participant, existing is None
+    return participant, True
 
 
-def list_participants(db: Session, event_id: UUID, user_id: UUID, strength: str = None, experience: str = None) -> list[Participant]:
+def list_participants(
+    db: Session,
+    event_id: UUID,
+    user_id: UUID,
+    strength: str = None,
+    experience: str = None,
+    limit: int = 500,
+    offset: int = 0,
+) -> list[Participant]:
     from app.services.event_service import _assert_organizer
     _assert_organizer(db, event_id, user_id)
     q = db.query(Participant).filter(Participant.event_id == event_id)
@@ -86,7 +100,7 @@ def list_participants(db: Session, event_id: UUID, user_id: UUID, strength: str 
         q = q.filter(Participant.normalized_strength == strength)
     if experience:
         q = q.filter(Participant.experience_level == experience)
-    return q.all()
+    return q.order_by(Participant.registered_at).offset(offset).limit(limit).all()
 
 
 def delete_participant(db: Session, event_id: UUID, participant_id: UUID, user_id: UUID) -> Participant:
@@ -95,6 +109,21 @@ def delete_participant(db: Session, event_id: UUID, participant_id: UUID, user_i
     p = db.query(Participant).filter(Participant.id == participant_id, Participant.event_id == event_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Participant not found")
+    from app.models.payout import PayoutItem, RewardClaim
+    from app.models.team import TeamMember
+    from app.models.team_notification import TeamNotification
+
+    is_referenced = any((
+        db.query(TeamMember).filter(TeamMember.participant_id == participant_id).first(),
+        db.query(PayoutItem).filter(PayoutItem.participant_id == participant_id).first(),
+        db.query(RewardClaim).filter(RewardClaim.participant_id == participant_id).first(),
+        db.query(TeamNotification).filter(TeamNotification.participant_id == participant_id).first(),
+    ))
+    if is_referenced:
+        raise HTTPException(
+            status_code=409,
+            detail="Participants included in an allocation or reward history cannot be deleted",
+        )
     db.delete(p)
     db.commit()
     return p
@@ -154,6 +183,9 @@ def import_participants_csv(db: Session, event_id: UUID, user_id: UUID, content:
     created = updated = skipped = 0
     errors: list[str] = []
     for line_number, row in enumerate(reader, start=2):
+        if line_number > settings.CSV_IMPORT_MAX_ROWS + 1:
+            db.rollback()
+            raise HTTPException(status_code=413, detail="CSV has too many rows")
         if not any((value or "").strip() for value in row.values()):
             skipped += 1
             continue
@@ -170,6 +202,9 @@ def import_participants_csv(db: Session, event_id: UUID, user_id: UUID, content:
             )
         except ValidationError as exc:
             errors.append(f"Line {line_number}: {exc.errors()[0]['msg']}")
+            if len(errors) >= 100:
+                errors.append("Import stopped after 100 validation errors")
+                break
             continue
 
         existing = db.query(Participant).filter(

@@ -37,6 +37,11 @@ interface PayoutModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface PaymentAttempt {
+  bolt11: string;
+  preimage?: string;
+}
+
 export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutModalProps) {
   const { data: session } = useSession();
   const [totalSats, setTotalSats] = useState(2100);
@@ -46,12 +51,17 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
   const [payout, setPayout] = useState<Payout | null>(null);
   const [preflight, setPreflight] = useState<string[]>([]);
   const [claims, setClaims] = useState<RewardClaim[]>([]);
+  const [paymentAttempts, setPaymentAttempts] = useState<Record<string, PaymentAttempt>>({});
 
   const n = team.members.length;
   const base = n > 0 ? Math.floor(totalSats / n) : 0;
   const rem = n > 0 ? totalSats % n : 0;
 
   const handleOpenChange = (o: boolean) => {
+    if (!o && Object.keys(paymentAttempts).length > 0) {
+      toast.error("Finish confirming the in-progress payments before closing.");
+      return;
+    }
     if (!o) {
       setNwc("");
       setPreflight([]);
@@ -60,21 +70,54 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     onOpenChange(o);
   };
 
-  // Pay each item in the browser: resolve an invoice, send via NWC (the credential
-  // never leaves this client), then report the result for the server to verify.
+  const markLocal = (current: Payout, itemId: string, status: string, error: string): Payout => ({
+    ...current,
+    items: current.items.map(item => item.id === itemId ? { ...item, status, error } : item),
+  });
+
+  // Once a wallet attempt starts, retain and reuse that exact invoice. A reporting
+  // failure must never be converted into a fresh payment attempt.
   const payItems = async (current: Payout, items: PayoutItem[]): Promise<Payout> => {
     const token = session!.accessToken!;
     for (const item of items) {
       const addr = addresses[item.participant_id]?.trim() || item.lightning_address;
+      let attempt = paymentAttempts[item.id];
       try {
         if (!addr) throw new Error("missing lightning address");
-        const invoice = await resolveInvoice(addr, item.amount_sats);
-        const preimage = await payWithNwc(nwc, invoice);
-        current = await reportPayoutItemResult(token, current.id, item.id, invoice, preimage);
-      } catch (e) {
-        current = await reportPayoutItemFailed(
-          token, current.id, item.id, e instanceof Error ? e.message : String(e)
+        if (!attempt) {
+          attempt = { bolt11: await resolveInvoice(addr, item.amount_sats) };
+          setPaymentAttempts(previous => ({ ...previous, [item.id]: attempt! }));
+        }
+        if (!attempt.preimage) {
+          attempt = { ...attempt, preimage: await payWithNwc(nwc, attempt.bolt11) };
+          setPaymentAttempts(previous => ({ ...previous, [item.id]: attempt! }));
+        }
+        current = await reportPayoutItemResult(
+          token, current.id, item.id, attempt.bolt11, attempt.preimage!
         );
+        setPaymentAttempts(previous => {
+          const next = { ...previous };
+          delete next[item.id];
+          return next;
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        if (attempt) {
+          current = markLocal(
+            current,
+            item.id,
+            "pending",
+            attempt.preimage
+              ? `Payment completed; confirmation pending: ${message}`
+              : `Wallet result uncertain; retrying will reuse the same invoice: ${message}`,
+          );
+        } else {
+          try {
+            current = await reportPayoutItemFailed(token, current.id, item.id, message);
+          } catch {
+            current = markLocal(current, item.id, "failed", message);
+          }
+        }
       }
       setPayout(current); // live per-member status
     }
@@ -159,8 +202,11 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     if (!session?.accessToken || !payout) return;
     setSending(true);
     try {
-      const failed = payout.items.filter((i) => i.status === "failed");
-      const current = await payItems(payout, failed);
+      const retryIds = new Set([
+        ...Object.keys(paymentAttempts),
+        ...payout.items.filter(item => item.status === "failed").map(item => item.id),
+      ]);
+      const current = await payItems(payout, payout.items.filter(item => retryIds.has(item.id)));
       if (current.status === "complete") toast.success("Retry complete");
       else toast.error("Some payments still need attention");
     } catch (err: unknown) {
@@ -171,7 +217,8 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
   };
 
   const canSend = !sending && !!nwc && totalSats >= n;
-  const hasFailedItems = payout?.items.some(item => item.status === "failed");
+  const hasFailedItems = Object.keys(paymentAttempts).length > 0
+    || payout?.items.some(item => item.status === "failed");
   const claimedCount = claims.filter(claim => claim.lightning_address).length;
 
   return (
@@ -206,6 +253,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
             <Input
               id="nwc"
               type="password"
+              autoComplete="off"
               value={nwc}
               onChange={e => setNwc(e.target.value)}
               placeholder="Paste wallet connection string"
@@ -296,7 +344,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                         setAddresses(prev => ({ ...prev, [member.id]: e.target.value }))
                       }
                       className="h-7 text-xs"
-                      // Re-enable for correction when items failed and can be retried.
+                      // Re-enable for correction only when no wallet attempt exists.
                       disabled={!!payout && !hasFailedItems}
                     />
                   </div>
@@ -369,7 +417,9 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                             )}
                           </span>
                         ) : (
-                          <span className="ml-2 text-red-600 text-xs truncate">{item.error}</span>
+                          <span className="ml-2 text-red-600 text-xs truncate">
+                            {item.error ?? (paymentAttempts[item.id] ? "Payment confirmation pending" : item.status)}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -394,7 +444,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
           )}
           {payout && hasFailedItems && (
             <Button variant="outline" onClick={handleRetry} disabled={sending || !nwc}>
-              {sending ? "Retrying…" : "Retry failed"}
+              {sending ? "Retrying…" : "Resume payout"}
             </Button>
           )}
           <Button variant="outline" onClick={() => handleOpenChange(false)}>

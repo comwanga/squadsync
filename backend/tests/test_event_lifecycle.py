@@ -59,6 +59,26 @@ def test_delete_requires_organizer(client, auth_headers, other_headers):
     assert client.delete(f"/api/v1/events/{e['id']}", headers=other_headers).status_code == 403
 
 
+def test_delete_rejects_event_with_reward_history(client, auth_headers):
+    e = _active_event(client, auth_headers)
+    for i in range(2):
+        client.post(f"/api/v1/events/{e['registration_slug']}/register", json={
+            "name": f"P{i}", "email": f"p{i}@t.com",
+            "primary_strength": "technical", "experience_level": "intermediate",
+        })
+    allocation = client.post(f"/api/v1/events/{e['id']}/allocate", headers=auth_headers).json()
+    team_id = allocation["teams"][0]["id"]
+    claims = client.post(
+        f"/api/v1/allocations/{allocation['id']}/reward-claims",
+        headers=auth_headers,
+        json={"team_id": team_id, "total_sats": 100},
+    )
+    assert claims.status_code == 200
+
+    res = client.delete(f"/api/v1/events/{e['id']}", headers=auth_headers)
+    assert res.status_code == 409
+
+
 def test_co_organizer_cannot_delete(client, auth_headers):
     # A co-organizer may archive but NOT permanently delete an event they don't own.
     pk = PrivateKey()

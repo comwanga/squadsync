@@ -16,6 +16,17 @@ export class ApiError extends Error {
   }
 }
 
+function errorMessage(detail: unknown, status: number): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map(item => typeof item?.msg === "string" ? item.msg : null)
+      .filter(Boolean)
+      .join("; ") || `HTTP ${status}`;
+  }
+  return `HTTP ${status}`;
+}
+
 export async function fetchAPI<T = unknown>(
   path: string,
   options: FetchOptions = {}
@@ -30,11 +41,13 @@ export async function fetchAPI<T = unknown>(
     headers["Content-Type"] = "application/json";
   }
 
-  if (token) {
+  const useBackendProxy = typeof window !== "undefined" && !!token;
+  if (token && !useBackendProxy) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const baseUrl = useBackendProxy ? "/api/backend" : API_URL;
+  const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -42,7 +55,7 @@ export async function fetchAPI<T = unknown>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-    throw new ApiError(error.detail ?? `HTTP ${response.status}`, response.status);
+    throw new ApiError(errorMessage(error.detail, response.status), response.status);
   }
 
   return response.json() as Promise<T>;

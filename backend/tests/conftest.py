@@ -6,15 +6,25 @@ import time
 import pytest
 from coincurve import PrivateKey
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base, get_db
 from app.main import app
+from app.core.rate_limit import clear_rate_limits
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test_squadsync.db"
 
 engine = create_engine(SQLALCHEMY_TEST_URL, connect_args={"check_same_thread": False})
+
+
+@event.listens_for(engine, "connect")
+def enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -40,6 +50,7 @@ def make_nostr_event(privkey: PrivateKey, url: str = "http://testserver/auth/nos
 
 @pytest.fixture(autouse=True)
 def setup_database():
+    clear_rate_limits()
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
@@ -104,14 +104,10 @@ def update_config(
     current_user: User = Depends(get_current_user),
 ):
     _assert_organizer(db, event_id, current_user.id)
-    if abs(req.weight_experience + req.weight_skill - 1.0) > 0.001:
-        raise HTTPException(status_code=400, detail="Weights must sum to 1.0")
     config = db.query(AllocationConfig).filter(AllocationConfig.event_id == event_id).first()
     if not config:
         config = AllocationConfig(event_id=event_id)
         db.add(config)
-    config.weight_experience = req.weight_experience
-    config.weight_skill = req.weight_skill
     config.role_constraints = req.role_constraints
     db.commit()
     db.refresh(config)
@@ -133,12 +129,20 @@ def allocate(event_id: UUID, db: Session = Depends(get_db), current_user: User =
 
 
 @router.get("/{event_id}/allocations", response_model=list[AllocationOut])
-def list_allocations(event_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_allocations(
+    event_id: UUID,
+    limit: int = Query(100, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     _assert_organizer(db, event_id, current_user.id)
     allocations = (
         db.query(Allocation)
         .filter(Allocation.event_id == event_id)
         .order_by(Allocation.created_at.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return [_build_allocation_out(db, a) for a in allocations]

@@ -103,7 +103,12 @@ def record_item_result(
     if item.status != "paid":
         item.bolt11 = bolt11_str
         item.preimage = preimage
-        if bolt11.preimage_matches(bolt11_str, preimage):
+        amount_matches = False
+        try:
+            amount_matches = bolt11.amount_msats(bolt11_str) == item.amount_sats * 1000
+        except bolt11.Bolt11Error:
+            pass
+        if amount_matches and bolt11.preimage_matches(bolt11_str, preimage):
             item.status, item.error = "paid", None
             claim = db.query(RewardClaim).filter(
                 RewardClaim.allocation_id == payout.allocation_id,
@@ -113,7 +118,7 @@ def record_item_result(
                 claim.status = "paid"
         else:
             item.status = "unverified"
-            item.error = "wallet returned a preimage that does not match the invoice"
+            item.error = "invoice amount or payment preimage does not match the payout item"
     items = db.query(PayoutItem).filter(PayoutItem.payout_id == payout.id).all()
     payout.status = _rollup_status(items)
     db.commit()
@@ -131,4 +136,3 @@ def record_item_failed(db: Session, payout: Payout, item: PayoutItem, error: str
     db.commit()
     db.refresh(payout)
     return payout
-

@@ -33,7 +33,8 @@ def _pay_all(client, headers, payout):
         preimage = hashlib.sha256(item["id"].encode()).hexdigest()
         res = client.post(
             f"/api/v1/allocations/payouts/{payout['id']}/items/{item['id']}/result",
-            headers=headers, json={"bolt11": invoice_for_preimage(preimage), "preimage": preimage},
+            headers=headers,
+            json={"bolt11": invoice_for_preimage(preimage, item["amount_sats"]), "preimage": preimage},
         )
         assert res.status_code == 200, res.text
         final = res.json()
@@ -182,13 +183,32 @@ def test_public_results_include_payout_summary(client, auth_headers):
 
 def test_payout_models_importable_and_persist(db):
     import uuid
+    from app.models.allocation import Allocation
+    from app.models.event import Event
+    from app.models.participant import Participant
     from app.models.payout import Payout, PayoutItem
+    from app.models.user import User
 
-    payout = Payout(event_id=uuid.uuid4(), allocation_id=uuid.uuid4(),
+    user = User(pubkey=uuid.uuid4().hex * 2)
+    db.add(user)
+    db.flush()
+    event = Event(owner_id=user.id, title="Payout model", team_count=2,
+                  registration_slug=uuid.uuid4().hex[:8])
+    db.add(event)
+    db.flush()
+    allocation = Allocation(event_id=event.id, snapshot_hash="h", status="draft")
+    participant = Participant(
+        event_id=event.id, name="Ada", email="ada@example.com",
+        experience_level="advanced", primary_strength="technical",
+    )
+    db.add_all([allocation, participant])
+    db.flush()
+
+    payout = Payout(event_id=event.id, allocation_id=allocation.id,
                     team_label="Team Satoshi", total_sats=210, status="pending")
     db.add(payout)
     db.flush()
-    item = PayoutItem(payout_id=payout.id, participant_id=uuid.uuid4(),
+    item = PayoutItem(payout_id=payout.id, participant_id=participant.id,
                       lightning_address="ada@getalby.com", amount_sats=105, status="pending")
     db.add(item)
     db.commit()

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
+from app.core.rate_limit import rate_limit
 from app.models.allocation import Allocation
 from app.models.participant import Participant
 from app.models.payout import Payout, PayoutItem, RewardClaim
@@ -181,7 +182,11 @@ def create_reward_claims(
     return {"team_id": team.id, "total_sats": req.total_sats, "items": items}
 
 
-@router.get("/reward-claims/{token}", response_model=PublicRewardClaimOut)
+@router.get(
+    "/reward-claims/{token}",
+    response_model=PublicRewardClaimOut,
+    dependencies=[Depends(rate_limit("reward-claim-read", requests=60))],
+)
 def get_reward_claim(token: str, db: Session = Depends(get_db)):
     claim = db.query(RewardClaim).filter(RewardClaim.token == token).first()
     if not claim:
@@ -204,7 +209,11 @@ def get_reward_claim(token: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/reward-claims/{token}", response_model=PublicRewardClaimOut)
+@router.post(
+    "/reward-claims/{token}",
+    response_model=PublicRewardClaimOut,
+    dependencies=[Depends(rate_limit("reward-claim-submit", requests=10))],
+)
 def submit_reward_claim(token: str, req: RewardClaimSubmit, db: Session = Depends(get_db)):
     address = req.lightning_address.strip()
     if not LIGHTNING_ADDRESS_RE.match(address):

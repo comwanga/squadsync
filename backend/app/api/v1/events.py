@@ -22,10 +22,12 @@ def create(req: EventCreate, db: Session = Depends(get_db), current_user: User =
 @router.get("", response_model=list[EventOut])
 def list_all(
     archived: bool = Query(False),
+    limit: int = Query(100, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return list_events(db, current_user.id, archived)
+    return list_events(db, current_user.id, archived, limit, offset)
 
 
 @router.get("/{event_id}", response_model=EventOut)
