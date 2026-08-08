@@ -94,6 +94,8 @@ export function NostrIdentityProvider({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Hydrate capability from sessionStorage after client mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCapabilityState(loadFromSession());
     setMounted(true);
   }, []);
