@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -88,7 +89,16 @@ export function NostrIdentityProvider({
   children: ReactNode;
 }) {
   const [capability, setCapabilityState] =
-    useState<SigningCapability>(() => loadFromSession());
+    useState<SigningCapability>(null);
+
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // Hydrate capability from sessionStorage after client mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCapabilityState(loadFromSession());
+    setMounted(true);
+  }, []);
 
   const setCapability = useCallback((c: SigningCapability) => {
     persistToSession(c);
@@ -111,20 +121,12 @@ export function NostrIdentityProvider({
     [capability],
   );
 
-  if (typeof window === "undefined") {
-    return (
-      <NostrIdentityContext.Provider
-        value={{ capability: null, setCapability: () => {}, signEvent: async () => { throw new Error("not ready"); }, clearCapability: () => {} }}
-      >
-        {children}
-      </NostrIdentityContext.Provider>
-    );
-  }
+  const value = mounted
+    ? { capability, setCapability, signEvent, clearCapability }
+    : { capability: null, setCapability, signEvent, clearCapability };
 
   return (
-    <NostrIdentityContext.Provider
-      value={{ capability, setCapability, signEvent, clearCapability }}
-    >
+    <NostrIdentityContext.Provider value={value}>
       {children}
     </NostrIdentityContext.Provider>
   );
