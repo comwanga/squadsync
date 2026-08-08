@@ -43,21 +43,19 @@ export default function EscrowsPage() {
 
   useEffect(() => {
     if (!session?.accessToken) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetchEscrows(session.accessToken)
       .then((data) => setEscrows(data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [session?.accessToken]);
 
   const refresh = () => {
     if (!session?.accessToken) return;
-    setLoading(true);
     fetchEscrows(session.accessToken)
       .then((data) => setEscrows(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
   };
 
   const active = escrows.filter((e) => activeStatuses.includes(e.status));

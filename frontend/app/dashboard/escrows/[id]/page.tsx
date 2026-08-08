@@ -63,24 +63,14 @@ export default function EscrowDetailPage() {
   // Confirm funded dialog
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const load = async () => {
-    if (!session?.accessToken) return;
-    try {
-      const data = await fetchEscrow(session.accessToken, escrowId);
-      setEscrow(data);
-      setFundingRequest(data.funding_request);
-    } catch { /* handled by SWR 401 → signOut */ }
-    setLoading(false);
-  };
-
   useEffect(() => {
     if (!session?.accessToken) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetchEscrow(session.accessToken, escrowId)
       .then((data) => { setEscrow(data); setFundingRequest(data.funding_request); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [session?.accessToken, escrowId]);
 
   if (loading) {
