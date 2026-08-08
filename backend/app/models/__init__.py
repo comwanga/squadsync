@@ -8,10 +8,11 @@ from app.models.feedback import Feedback
 from app.models.team_notification import TeamNotification
 from app.models.payout import Payout, PayoutItem, RewardClaim
 from app.models.escrow_agent import EscrowAgentEvent
+from app.models.escrow import Escrow
 
 __all__ = [
     "User", "Event", "EventCoOrganizer", "Participant",
     "AllocationConfig", "Allocation", "Team", "TeamMember",
     "UsedAuthEvent", "Feedback", "TeamNotification", "Payout", "PayoutItem", "RewardClaim",
-    "EscrowAgentEvent",
+    "EscrowAgentEvent", "Escrow",
 ]

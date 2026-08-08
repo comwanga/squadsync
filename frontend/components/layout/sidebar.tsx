@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Calendar, Settings, ChevronLeft, ChevronRight, Shield,
+  LayoutDashboard, Calendar, Settings, ChevronLeft, ChevronRight, Shield, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
@@ -14,6 +14,7 @@ const navItems = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { label: "Events", href: "/dashboard/events", icon: Calendar },
   { label: "Agent", href: "/dashboard/agent", icon: Shield },
+  { label: "Escrows", href: "/dashboard/escrows", icon: Wallet },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
