@@ -26,8 +26,13 @@ automatically when the repo is connected.
    | `squadsync-web` | Next.js frontend | 3000 |
 
 5. The initial builds will fail — that's expected. `squadsync-web` can't build
-   without `NEXT_PUBLIC_API_URL` set, and `squadsync-api` can't publish without
-   a `SECRET_KEY`. Move on to step 3.
+   without `NEXT_PUBLIC_API_URL` set, and `squadsync-api` needs the `SECRET_KEY`
+   reference resolved. Move on to step 3.
+
+> **If Railway only creates a single service** (tries to build the repo root
+> with Railpack), delete the project and recreate it. Railway caches the
+> project type at creation time — the `railway.toml` must be on the default
+> branch *before* the project is created.
 
 ---
 

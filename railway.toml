@@ -1,26 +1,17 @@
-# SquadSync Railway blueprint (multi-service)
-# Railway auto-detects this when the repo is connected.
-#
-# Three services:
-#   - squadsync-db    — managed PostgreSQL 16
-#   - squadsync-api   — FastAPI (backend/Dockerfile)
-#   - squadsync-web   — Next.js (frontend/Dockerfile)
+schemaVersion = 2
 
 [services.squadsync-db]
-  [services.squadsync-db.postgres]
-    version = "16"
+  type = "postgres"
 
 [services.squadsync-api]
   [services.squadsync-api.build]
-    dockerfilePath = "./backend/Dockerfile"
+    dockerfilePath = "backend/Dockerfile"
   [services.squadsync-api.deploy]
     healthcheckPath = "/ready"
     healthcheckTimeout = 15
   [services.squadsync-api.source]
     watchPatterns = ["backend/**"]
   [services.squadsync-api.variables]
-    # Railway auto-injects ${{ DATABASE_URL }} from the Postgres link.
-    # Set the rest in the Railway dashboard.
     SECRET_KEY = "${{ SECRET_KEY }}"
     ALGORITHM = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES = "1440"
@@ -30,7 +21,7 @@
 
 [services.squadsync-web]
   [services.squadsync-web.build]
-    dockerfilePath = "./frontend/Dockerfile"
+    dockerfilePath = "frontend/Dockerfile"
     [services.squadsync-web.build.args]
       NEXT_PUBLIC_API_URL = "${{ NEXT_PUBLIC_API_URL }}"
   [services.squadsync-web.deploy]
