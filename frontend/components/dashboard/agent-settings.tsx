@@ -445,7 +445,7 @@ export function AgentSettings() {
                   className="flex-1 gap-1.5"
                   onClick={() => {
                     setDetailOpen(false);
-                    router.push("/dashboard/events");
+                    router.push(`/dashboard/escrows/create?agent=${encodeURIComponent(selectedAgent.coordinate)}`);
                   }}
                 >
                   <Calendar className="h-4 w-4" />
