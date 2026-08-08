@@ -5,95 +5,174 @@ managed PostgreSQL database. No Vercel, no Render.
 
 ---
 
-## Quick deploy
+## Step 1: Push this code to GitHub
 
-1. Push this branch to GitHub.
+Make sure the repo is up to date on `main`. Railway reads `railway.toml`
+automatically when the repo is connected.
 
-2. In the Railway dashboard → **New Project** → **Deploy from GitHub repo**
-   → select this repository.
+---
 
-3. Railway reads `railway.toml` and provisions:
-   - `squadsync-db` — managed PostgreSQL 16
-   - `squadsync-api` — FastAPI backend (builds from `backend/Dockerfile`)
-   - `squadsync-web` — Next.js frontend (builds from `frontend/Dockerfile`)
+## Step 2: Create the Railway project
 
-4. Set the required secrets. Go to each service → **Variables** and set:
+1. Go to [railway.app](https://railway.app) → **New Project**
+2. Choose **Deploy from GitHub repo**
+3. Select `comwanga/squadsync`
+4. Railway reads `railway.toml` and provisions three services:
 
-   **squadsync-api**
-   | Key | How to get |
-   |---|---|
-   | `SECRET_KEY` | Generate: `openssl rand -base64 32` |
-   | `DATABASE_URL` | Railway auto-injects this from the Postgres link — no need to set it |
-   | `FRONTEND_URL` | Railway URL of `squadsync-web`, e.g. `https://squadsync-web.up.railway.app` |
-   | `PUBLIC_API_URL` | Railway URL of `squadsync-api`, e.g. `https://squadsync-api.up.railway.app` |
+   | Service | What it is | Port |
+   |---|---|---|
+   | `squadsync-db` | PostgreSQL 16 | internal |
+   | `squadsync-api` | FastAPI backend | 8000 |
+   | `squadsync-web` | Next.js frontend | 3000 |
 
-   **squadsync-web**
-   | Key | How to get |
-   |---|---|
-   | `NEXT_PUBLIC_API_URL` | Same as `PUBLIC_API_URL` above — **must match exactly** |
-   | `AUTH_SECRET` | Generate: `openssl rand -base64 32` — must be the same value in every environment |
+5. The initial builds will fail — that's expected. `squadsync-web` can't build
+   without `NEXT_PUBLIC_API_URL` set, and `squadsync-api` can't publish without
+   a `SECRET_KEY`. Move on to step 3.
 
-   > **Do not set `AUTH_URL`.** The app uses `trustHost: true`, so Auth.js derives
-   > the URL from the request host.
+---
 
-5. **Redeploy** after setting variables — Railway needs to rebuild `squadsync-web`
-   since `NEXT_PUBLIC_API_URL` is inlined at build time.
+## Step 3: Link Postgres to the API service
 
-6. Done. Open `squadsync-web`'s Railway URL.
+1. In the Railway project, go to **squadsync-db → Variables**
+2. There should be a `DATABASE_URL` entry already there. If not, generate a
+   connection string (Railway usually auto-provisions it).
+3. Go to **squadsync-api → Variables** and add a **Reference** variable:
+   - Click **New Variable** → **Reference**
+   - Source: `squadsync-db`
+   - Variable: `DATABASE_URL`
+
+   This injects the Postgres connection string into the API service.
+
+---
+
+## Step 4: Set required secrets
+
+Go to **squadsync-api → Variables** and add:
+
+| Key | Value |
+|---|---|
+| `SECRET_KEY` | Run `openssl rand -base64 32` in a terminal |
+
+Go to **squadsync-web → Variables** and add:
+
+| Key | Value |
+|---|---|
+| `AUTH_SECRET` | Run `openssl rand -base64 32` |
+
+---
+
+## Step 5: Get the service URLs
+
+After the first deploy (even a failed one), Railway assigns public domains.
+
+1. Go to **squadsync-api → Settings** → copy the domain
+   Example: `squadsync-api.up.railway.app`
+2. Go to **squadsync-web → Settings** → copy the domain
+   Example: `squadsync-web.up.railway.app`
+
+---
+
+## Step 6: Set cross-reference variables
+
+Go to **squadsync-api → Variables** and add:
+
+| Key | Value |
+|---|---|
+| `PUBLIC_API_URL` | `https://squadsync-api.up.railway.app` (your actual API URL, NO trailing slash) |
+| `FRONTEND_URL` | `https://squadsync-web.up.railway.app` (your actual web URL, NO trailing slash) |
+
+Go to **squadsync-web → Variables** and add:
+
+| Key | Value |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | `https://squadsync-api.up.railway.app` (same as `PUBLIC_API_URL` above) |
+
+> `NEXT_PUBLIC_API_URL` must match `PUBLIC_API_URL` exactly. The NIP-98 auth
+> binds to this URL, and a mismatch causes sign-in to fail silently.
+
+---
+
+## Step 7: Redeploy the web service
+
+`NEXT_PUBLIC_API_URL` is inlined at **build time**. Changing it after deploy
+requires a rebuild.
+
+1. Go to **squadsync-web → Deployments**
+2. Click the most recent deployment → **Redeploy**
+
+Or push any commit to the repo — Railway picks it up automatically.
+
+---
+
+## Step 8: Verify
+
+1. Open `https://squadsync-web.up.railway.app`
+2. Click **Create organizer key** → save the recovery key → sign in
+3. Create an event → activate it → register participants → allocate teams
 
 ---
 
 ## Environment reference
 
-| Key | Service | Required | Notes |
-|---|---|---|---|
-| `DATABASE_URL` | api | ✅ | Auto-injected by Railway from the Postgres service link |
-| `SECRET_KEY` | api | ✅ | JWT signing key. Generate a strong random string |
-| `FRONTEND_URL` | api | ✅ | CORS origin. No trailing slash |
-| `PUBLIC_API_URL` | api | ✅ | Used for NIP-98 auth URL binding. Must equal `NEXT_PUBLIC_API_URL` |
-| `NEXT_PUBLIC_API_URL` | web | ✅ | Inlined at build time. Must equal `PUBLIC_API_URL` |
-| `AUTH_SECRET` | web | ✅ | NextAuth session secret. Must be set or `/api/auth/session` returns 500 |
-| `ANTHROPIC_API_KEY` | api | optional | Enables AI normalization of free-text "Other" strengths |
-| `SQUADSYNC_NSEC` | api | optional | Dedicated bot Nostr nsec for DM signing. Unset → DMs no-op |
-| `FEEDBACK_NPUB` | api | optional | Owner npub for feedback DMs |
-| `NOSTR_RELAYS` | api | optional | Defaults to `relay.damus.io,nos.lol,relay.nostr.band` |
+### squadsync-api
+
+| Key | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | ✅ | Reference to `squadsync-db`. Auto-injected by Railway. |
+| `SECRET_KEY` | ✅ | JWT signing key. Generate a strong random string. |
+| `FRONTEND_URL` | ✅ | CORS origin. No trailing slash. |
+| `PUBLIC_API_URL` | ✅ | NIP-98 auth binding. Must equal `NEXT_PUBLIC_API_URL`. |
+| `ALGORITHM` | no | Defaults to `HS256`. |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | no | Defaults to `1440` (24h). |
+| `ANTHROPIC_API_KEY` | optional | Enables AI normalization of free-text "Other" strengths. |
+| `SQUADSYNC_NSEC` | optional | Dedicated bot Nostr nsec for DM signing. Unset → DMs no-op. |
+| `FEEDBACK_NPUB` | optional | Owner npub for feedback DMs. |
+| `NOSTR_RELAYS` | optional | Defaults to `damus.io,nos.lol,nostr.band`. |
+
+### squadsync-web
+
+| Key | Required | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | ✅ | Must equal `PUBLIC_API_URL`. Inlined at build time. |
+| `AUTH_SECRET` | ✅ | NextAuth session secret. 500 on `/api/auth/session` if missing. |
+
+> **Do not set `AUTH_URL`.** The app uses `trustHost: true`, so Auth.js
+> derives the URL from the request host automatically.
 
 ---
 
 ## Architecture
 
 ```
-                   ┌──────────────────────┐
-                   │   load balancer      │
-                   │   (Railway)          │
-                   └──────┬───────────────┘
+                   Railway load balancer
                           │
             ┌─────────────┴──────────────┐
             │                            │
     ┌───────▼──────┐            ┌────────▼──────┐
     │ squadsync-web│            │ squadsync-api │
     │  Next.js 16  │────HTTP────▶  FastAPI      │
+    │  Dockerfile  │            │  Dockerfile   │
     │  port 3000   │            │  port 8000    │
     └──────────────┘            └───────┬───────┘
-                                       │
                                        │ TCP:5432
-                                       │
                                ┌───────▼──────┐
                                │ squadsync-db │
                                │ PostgreSQL 16│
                                └──────────────┘
 ```
 
-All HTTPS terminates at Railway's load balancer. Internal traffic between
-services uses Railway's private network (service DNS names).
+All HTTPS terminates at Railway's load balancer. `squadsync-web` calls the
+API through the Next.js backend proxy (`/api/backend/*`) which forwards
+authenticated requests server-side.
 
 ---
 
-## Running migrations
+## Migrations
 
-Migrations run automatically on every deploy — the backend's `CMD` runs
-`alembic upgrade head` before starting the server. To run them manually:
+Migrations run automatically on every deploy. The backend Dockerfile runs
+`alembic upgrade head` before starting uvicorn.
 
+To run manually:
 ```bash
 railway connect --service squadsync-api
 railway run "alembic upgrade head"
@@ -103,29 +182,24 @@ railway run "alembic upgrade head"
 
 ## Local development
 
-For local dev, use Docker Compose:
-
+Use Docker Compose:
 ```bash
 docker compose up --build
 ```
 
 Frontend: `http://localhost:3000`
-Backend health: `http://localhost:8000/health`
 API docs: `http://localhost:8000/docs`
-
-No env changes needed for local — `docker-compose.yml` has defaults for all
-required variables.
 
 ---
 
 ## Gotchas
 
-- **`NEXT_PUBLIC_*` needs a rebuild.** Changing `NEXT_PUBLIC_API_URL` after deploy
-  won't take effect until the web service redeploys — these vars are inlined at
-  build time.
-- **URLs must match exactly.** `NEXT_PUBLIC_API_URL` and `PUBLIC_API_URL` must be
-  identical, no trailing slash — NIP-98 auth binds to this URL.
-- **Railway free tier** includes $5 credit/month. The Postgres + two services fit
-  within that for light use. Monitor usage in the dashboard.
-- **Cold starts.** Railway's hobby plan has a sleep policy after inactivity.
-  Upgrade to a paid plan for production use.
+- **`NEXT_PUBLIC_*` requires a redeploy.** These are inlined at Next.js build
+  time. Changing them in the dashboard has no effect until the service
+  rebuilds.
+- **URLs must match exactly.** `NEXT_PUBLIC_API_URL` and `PUBLIC_API_URL` must
+  be identical, no trailing slash.
+- **Cold starts.** Railway's hobby plan sleeps idle services. Upgrade for
+  production use.
+- **CORS is strict.** Only the `FRONTEND_URL` origin is allowed. If you add a
+  custom domain, update `FRONTEND_URL` accordingly.
