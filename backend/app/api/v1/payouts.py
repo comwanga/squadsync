@@ -38,6 +38,7 @@ def _payout_out(db: Session, payout: Payout) -> PayoutOut:
     return PayoutOut(
         id=payout.id, event_id=payout.event_id, allocation_id=payout.allocation_id,
         team_label=payout.team_label, total_sats=payout.total_sats, status=payout.status,
+        escrow_coordinate=payout.escrow_coordinate, escrow_status=payout.escrow_status,
         items=items,
     )
 
