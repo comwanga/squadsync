@@ -166,7 +166,7 @@ export async function preflightPayout(
 export async function createPayout(
   token: string,
   allocationId: string,
-  body: { team_id: string; total_sats: number; addresses?: Record<string, string> }
+  body: { team_id: string; total_sats: number; addresses?: Record<string, string>; escrow_coordinate?: string }
 ) {
   // Self-custody: no nwc is sent. The server returns pending items for the browser to pay.
   return fetchAPI<Payout>(`/api/v1/allocations/${allocationId}/payouts`, { method: "POST", body, token });

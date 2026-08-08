@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Shield, Globe, Zap, Loader2, CheckCircle, Info } from "lucide-react";
@@ -39,9 +39,26 @@ export function AgentSettings() {
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState<PublishedAgent | null>(null);
   const [agentList, setAgentList] = useState<PublishedAgent[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const loadedRef = useRef(false);
 
-  const loadAgents = async () => {
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    fetchAPI<{ agents: PublishedAgent[] }>("/api/v1/escrow/agents")
+      .then((res) => {
+        setAgentList(res.agents);
+        const myCoord = capability?.pk
+          ? escrowCoordinate(capability.pk, identifier || undefined)
+          : null;
+        if (myCoord) {
+          const existing = res.agents.find((a) => a.coordinate === myCoord);
+          if (existing) setPublished(existing);
+        }
+      })
+      .catch(() => { /* agent list is non-critical */ });
+  }, []);
+
+  const refreshAgents = async () => {
     try {
       const res = await fetchAPI<{ agents: PublishedAgent[] }>(
         "/api/v1/escrow/agents",
@@ -56,14 +73,8 @@ export function AgentSettings() {
       }
     } catch {
       // silent: agent list is non-critical
-    } finally {
-      setLoaded(true);
     }
   };
-
-  useState(() => {
-    loadAgents();
-  });
 
   const handlePublish = async () => {
     if (!capability) {
@@ -289,7 +300,7 @@ export function AgentSettings() {
       </Card>
 
       <div className="flex gap-2">
-        <Button onClick={loadAgents} variant="outline" className="gap-2">
+        <Button onClick={refreshAgents} variant="outline" className="gap-2">
           <Globe className="h-4 w-4" />
           Refresh agents
         </Button>
