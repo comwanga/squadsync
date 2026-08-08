@@ -9,9 +9,6 @@ import pytest
 from coincurve import PrivateKey
 
 
-ESCHRON_HEADERS = None
-
-
 def make_signed_escrow_event(privkey: PrivateKey, identifier: str = "my-agent") -> dict:
     """Build and sign a kind-30361 escrow descriptor event."""
     pubkey_hex = privkey.public_key.format(compressed=True)[1:].hex()
