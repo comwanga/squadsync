@@ -106,6 +106,8 @@ export interface Payout {
   team_label: string;
   total_sats: number;
   status: string;
+  escrow_coordinate: string | null;
+  escrow_status: string;
   items: PayoutItem[];
 }
 
@@ -221,5 +223,55 @@ export async function generateRationales(token: string, allocationId: string) {
   return fetchAPI<Record<string, TeamRationale>>(
     `/api/v1/allocations/${allocationId}/rationale`,
     { method: "POST", token }
+  );
+}
+
+export interface EscrowAgent {
+  coordinate: string;
+  pubkey: string;
+  escrow_type: string;
+  networks: string[];
+  funding_rules: { required_confirmation: string };
+  release_rules: { release_trigger: string; refund_trigger: string };
+  dispute_rules: { policy: string };
+  reference_format: string;
+  content: Record<string, unknown> | null;
+}
+
+export interface EscrowAgentListResponse {
+  agents: EscrowAgent[];
+}
+
+export async function fetchEscrowAgents(): Promise<EscrowAgentListResponse> {
+  return fetchAPI<EscrowAgentListResponse>("/api/v1/escrow/agents");
+}
+
+export async function publishEscrowAgent(
+  token: string,
+  event: Record<string, unknown>,
+): Promise<{ coordinate: string; status: string }> {
+  return fetchAPI<{ coordinate: string; status: string }>(
+    "/api/v1/escrow/publish",
+    { method: "POST", body: { event }, token },
+  );
+}
+
+export async function markEscrowFunded(
+  token: string,
+  payoutId: string,
+): Promise<Payout> {
+  return fetchAPI<Payout>(
+    `/api/v1/allocations/payouts/${payoutId}/escrow-funded`,
+    { method: "POST", token },
+  );
+}
+
+export async function markEscrowReleased(
+  token: string,
+  payoutId: string,
+): Promise<Payout> {
+  return fetchAPI<Payout>(
+    `/api/v1/allocations/payouts/${payoutId}/escrow-released`,
+    { method: "POST", token },
   );
 }

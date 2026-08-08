@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import QRCode from "react-qr-code";
-import { Zap, CheckCircle2, XCircle, QrCode, RefreshCw } from "lucide-react";
+import { Zap, CheckCircle2, XCircle, QrCode, RefreshCw, Shield } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,8 +23,12 @@ import {
   preflightPayout,
   reportPayoutItemResult,
   reportPayoutItemFailed,
+  markEscrowFunded,
+  markEscrowReleased,
+  fetchEscrowAgents,
   type Payout,
   type PayoutItem,
+  type EscrowAgent,
   type RewardClaim,
   type Team,
 } from "@/hooks/use-allocation";
@@ -44,6 +48,7 @@ interface PaymentAttempt {
 
 export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutModalProps) {
   const { data: session } = useSession();
+  const [payoutMode, setPayoutMode] = useState<"direct" | "escrow">("direct");
   const [totalSats, setTotalSats] = useState(2100);
   const [nwc, setNwc] = useState("");
   const [addresses, setAddresses] = useState<Record<string, string>>({});
@@ -52,10 +57,23 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
   const [preflight, setPreflight] = useState<string[]>([]);
   const [claims, setClaims] = useState<RewardClaim[]>([]);
   const [paymentAttempts, setPaymentAttempts] = useState<Record<string, PaymentAttempt>>({});
+  const [escrowAgents, setEscrowAgents] = useState<EscrowAgent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<EscrowAgent | null>(null);
+  const [loadingAgents, setLoadingAgents] = useState(false);
 
   const n = team.members.length;
   const base = n > 0 ? Math.floor(totalSats / n) : 0;
   const rem = n > 0 ? totalSats % n : 0;
+
+  useEffect(() => {
+    if (open && payoutMode === "escrow") {
+      setLoadingAgents(true);
+      fetchEscrowAgents()
+        .then((res) => setEscrowAgents(res.agents))
+        .catch(() => toast.error("Could not load escrow agents"))
+        .finally(() => setLoadingAgents(false));
+    }
+  }, [open, payoutMode]);
 
   const handleOpenChange = (o: boolean) => {
     if (!o && Object.keys(paymentAttempts).length > 0) {
@@ -136,17 +154,57 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
         team_id: team.id,
         total_sats: totalSats,
         addresses: Object.keys(overrides).length > 0 ? overrides : undefined,
+        escrow_coordinate:
+          payoutMode === "escrow" && selectedAgent
+            ? selectedAgent.coordinate
+            : undefined,
       });
-      setPayout(current);
-      current = await payItems(current, current.items);
-      if (current.status === "complete") toast.success("Payout complete");
-      else toast.error("Some payments need attention");
+
+      if (payoutMode === "escrow") {
+        setPayout(current);
+        toast.success("Escrow payout created. Deposit funds with the agent to continue.", {
+          duration: 6000,
+        });
+      } else {
+        setPayout(current);
+        current = await payItems(current, current.items);
+        if (current.status === "complete") toast.success("Payout complete");
+        else toast.error("Some payments need attention");
+      }
     } catch (err: unknown) {
       if (err instanceof ApiError && (err.status === 422 || err.status === 409)) {
         toast.error(err.message);
       } else {
         toast.error(err instanceof Error ? err.message : "Payout failed");
       }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleEscrowFunded = async () => {
+    if (!session?.accessToken || !payout) return;
+    setSending(true);
+    try {
+      const updated = await markEscrowFunded(session.accessToken, payout.id);
+      setPayout(updated);
+      toast.success("Escrow marked as funded");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update escrow status");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleEscrowReleased = async () => {
+    if (!session?.accessToken || !payout) return;
+    setSending(true);
+    try {
+      const updated = await markEscrowReleased(session.accessToken, payout.id);
+      setPayout(updated);
+      toast.success("Escrow marked as released. Recipients have been paid.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update escrow status");
     } finally {
       setSending(false);
     }
@@ -216,17 +274,25 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
     }
   };
 
-  const canSend = !sending && !!nwc && totalSats >= n;
+  const canSend = !sending && (payoutMode === "escrow" ? !!selectedAgent : !!nwc) && totalSats >= n;
   const hasFailedItems = Object.keys(paymentAttempts).length > 0
     || payout?.items.some(item => item.status === "failed");
   const claimedCount = claims.filter(claim => claim.lightning_address).length;
+
+  const isEscrowActive =
+    payout?.escrow_status === "escrow_pending" ||
+    payout?.escrow_status === "escrow_funded";
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-500" />
+            {payoutMode === "escrow" ? (
+              <Shield className="h-4 w-4 text-blue-500" />
+            ) : (
+              <Zap className="h-4 w-4 text-amber-500" />
+            )}
             Advanced Rewards - {team.name}
           </DialogTitle>
           <DialogDescription>
@@ -235,6 +301,83 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Payout mode toggle */}
+          {!payout && (
+            <div className="flex rounded-lg border border-slate-700 bg-slate-950/35 p-1">
+              <button
+                type="button"
+                onClick={() => setPayoutMode("direct")}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  payoutMode === "direct"
+                    ? "bg-slate-800 text-slate-100"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Zap className="inline h-3.5 w-3.5 mr-1.5" />
+                Direct send
+              </button>
+              <button
+                type="button"
+                onClick={() => setPayoutMode("escrow")}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  payoutMode === "escrow"
+                    ? "bg-slate-800 text-slate-100"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Shield className="inline h-3.5 w-3.5 mr-1.5" />
+                Use escrow agent
+              </button>
+            </div>
+          )}
+
+          {/* Escrow agent selection */}
+          {payoutMode === "escrow" && !payout && !isEscrowActive && (
+            <div className="space-y-2 rounded-md border border-blue-500/30 bg-blue-950/20 p-3">
+              <p className="text-sm font-medium text-blue-300">Select an escrow agent</p>
+              <p className="text-xs text-muted-foreground">
+                Agents are discovered from the Nostr network. Select one to hold funds
+                until prizes are released.
+              </p>
+
+              {loadingAgents && (
+                <p className="text-xs text-muted-foreground">Loading agents from relays...</p>
+              )}
+
+              {!loadingAgents && escrowAgents.length === 0 && (
+                <p className="text-xs text-amber-400">
+                  No escrow agents found. Register yourself as an agent from the{" "}
+                  <strong>Agent</strong> page, or use Direct send instead.
+                </p>
+              )}
+
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {escrowAgents.map((agent) => (
+                  <button
+                    key={agent.coordinate}
+                    type="button"
+                    onClick={() => setSelectedAgent(agent)}
+                    className={`w-full text-left rounded-md border p-2.5 transition-colors ${
+                      selectedAgent?.coordinate === agent.coordinate
+                        ? "border-blue-400 bg-blue-900/40"
+                        : "border-slate-700 bg-slate-900/60 hover:border-slate-500"
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-slate-100 truncate">
+                      {agent.coordinate}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {agent.escrow_type} &middot; {agent.networks.join(", ")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Release: {agent.release_rules.release_trigger}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Total sats input */}
           <div className="space-y-1.5">
             <Label htmlFor="total-sats">Total prize (sats)</Label>
@@ -248,21 +391,68 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="nwc">Wallet connection string</Label>
-            <Input
-              id="nwc"
-              type="password"
-              autoComplete="off"
-              value={nwc}
-              onChange={e => setNwc(e.target.value)}
-              placeholder="Paste wallet connection string"
-              disabled={!!payout}
-            />
-            <p className="text-xs text-muted-foreground">
-              Used only in this browser while sending. It is not stored and never reaches the server.
-            </p>
-          </div>
+          {/* Direct NWC wallet input (only in direct mode) */}
+          {payoutMode === "direct" && !payout && (
+            <div className="space-y-1.5">
+              <Label htmlFor="nwc">Wallet connection string</Label>
+              <Input
+                id="nwc"
+                type="password"
+                autoComplete="off"
+                value={nwc}
+                onChange={e => setNwc(e.target.value)}
+                placeholder="Paste wallet connection string"
+                disabled={!!payout}
+              />
+              <p className="text-xs text-muted-foreground">
+                Used only in this browser while sending. It is not stored and never reaches the server.
+              </p>
+            </div>
+          )}
+
+          {/* Escrow payout status display */}
+          {isEscrowActive && (
+            <div className="rounded-md border border-blue-500/30 bg-blue-950/20 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-blue-300">
+                  Escrow payout
+                </p>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300">
+                  {payout!.escrow_status}
+                </span>
+              </div>
+              {payout!.escrow_coordinate && (
+                <p className="text-xs text-muted-foreground truncate">
+                  Agent: {payout!.escrow_coordinate}
+                </p>
+              )}
+              <div className="flex gap-2">
+                {payout!.escrow_status === "escrow_pending" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEscrowFunded}
+                    disabled={sending}
+                  >
+                    {sending ? "Updating..." : "Mark as funded"}
+                  </Button>
+                )}
+                {(payout!.escrow_status === "escrow_pending" ||
+                  payout!.escrow_status === "escrow_funded") && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEscrowReleased}
+                    disabled={sending}
+                  >
+                    {sending ? "Updating..." : "Mark as released"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="rounded-md border border-slate-700 bg-slate-950/35 p-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -431,18 +621,26 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
         </div>
 
         <DialogFooter className="flex-wrap gap-2">
-          {!payout && (
+          {!payout && payoutMode === "direct" && (
             <Button variant="outline" onClick={runDryCheck} disabled={sending}>
               Dry run
             </Button>
           )}
-          {!payout && (
+          {!payout && !isEscrowActive && (
             <Button onClick={handleSend} disabled={!canSend}>
-              <Zap className="mr-2 h-4 w-4" />
-              {sending ? "Sending…" : "Send payout"}
+              {payoutMode === "escrow" ? (
+                <Shield className="mr-2 h-4 w-4" />
+              ) : (
+                <Zap className="mr-2 h-4 w-4" />
+              )}
+              {sending
+                ? "Sending..."
+                : payoutMode === "escrow"
+                  ? "Create escrow payout"
+                  : "Send payout"}
             </Button>
           )}
-          {payout && hasFailedItems && (
+          {payout && hasFailedItems && payoutMode === "direct" && (
             <Button variant="outline" onClick={handleRetry} disabled={sending || !nwc}>
               {sending ? "Retrying…" : "Resume payout"}
             </Button>

@@ -21,6 +21,9 @@ class Payout(Base):
     total_sats = Column(Integer, nullable=False)
     # pending | partial | complete | failed
     status = Column(String, nullable=False, default="pending")
+    escrow_coordinate = Column(String, nullable=True)
+    # direct | escrow_pending | escrow_funded | escrow_released
+    escrow_status = Column(String, nullable=False, default="direct")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

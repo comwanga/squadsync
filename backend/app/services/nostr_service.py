@@ -155,6 +155,96 @@ def _publish_to_relays(event: dict, relays: list[str]) -> bool:
     return accepted
 
 
+# --- Escrow agent discovery (kind 30361) ---
+
+_escrow_cache: dict[str, list[dict]] = {}
+_escrow_cache_ts: float = 0.0
+_CACHE_TTL_SECONDS = 30
+_REQUEST_TIMEOUT_MS = 8000
+
+
+def _read_from_relays(relays: list[str], subscription_id: str, filter_obj: dict) -> list[dict]:
+    """Open a short-lived WebSocket to each relay, REQ kind 30361, collect EVENTS.
+
+    Returns deduplicated events (latest created_at wins per id) across all relays.
+    Best-effort: a relay that times out is skipped; collected events from others
+    are still returned.
+    """
+    from websockets.sync.client import connect
+
+    events_by_id: dict[str, dict] = {}
+
+    for relay in relays:
+        try:
+            with connect(relay, open_timeout=5, close_timeout=5) as ws:
+                ws.send(json.dumps(["REQ", subscription_id, filter_obj]))
+                remaining = _REQUEST_TIMEOUT_MS / 1000.0
+                while remaining > 0:
+                    try:
+                        frame = ws.recv(timeout=min(remaining, 2))
+                    except Exception:  # noqa: BLE001
+                        break
+                    remaining = _REQUEST_TIMEOUT_MS / 1000.0 - (time.time() - time.time())
+                    try:
+                        data = json.loads(frame)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    if not isinstance(data, list):
+                        continue
+                    if data[0] == "EVENT" and data[1] == subscription_id:
+                        event = data[2]
+                        if isinstance(event, dict) and event.get("id"):
+                            eid = event["id"]
+                            if eid not in events_by_id or event.get("created_at", 0) > events_by_id[eid].get("created_at", 0):
+                                events_by_id[eid] = event
+                    if data[0] == "EOSE" and data[1] == subscription_id:
+                        ws.send(json.dumps(["CLOSE", subscription_id]))
+                        break
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Nostr relay %s read failed: %s", relay, exc)
+
+    return sorted(events_by_id.values(), key=lambda e: e.get("created_at", 0), reverse=True)
+
+
+def fetch_escrow_agents() -> list[dict]:
+    """Return kind-30361 escrow descriptor events from Nostr relays.
+
+    Results are cached for _CACHE_TTL_SECONDS to avoid hammering relays on
+    every page load. Call refresh_escrow_agents() to force a fresh read.
+    """
+    global _escrow_cache, _escrow_cache_ts
+    now = time.time()
+    if _escrow_cache and (now - _escrow_cache_ts) < _CACHE_TTL_SECONDS:
+        relay_key = settings.NOSTR_RELAYS
+        if relay_key in _escrow_cache:
+            return _escrow_cache[relay_key]
+
+    return refresh_escrow_agents()
+
+
+def refresh_escrow_agents() -> list[dict]:
+    """Force-read escrow agents from all configured Nostr relays, bypassing the cache."""
+    global _escrow_cache, _escrow_cache_ts
+    relay_key = settings.NOSTR_RELAYS
+    events = _read_from_relays(
+        settings.nostr_relays,
+        f"squadsync-escrow-{os.urandom(4).hex()}",
+        {"kinds": [30361], "#t": ["escrow"], "limit": 50},
+    )
+    _escrow_cache[relay_key] = events
+    _escrow_cache_ts = time.time()
+    return events
+
+
+def publish_event(event: dict) -> bool:
+    """Publish a signed Nostr event to all configured relays.
+
+    Returns True if at least one relay responded. Wraps _publish_to_relays
+    so callers don't need to know the relay list.
+    """
+    return _publish_to_relays(event, settings.nostr_relays)
+
+
 def send_dm(recipient_npub: str, message: str) -> bool:
     """Best-effort NIP-04 DM from the bot key to `recipient_npub`.
 

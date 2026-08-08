@@ -8,6 +8,7 @@ import { Zap, RefreshCw, Eye, EyeOff, Copy, Check, ArrowLeft } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useNostrIdentity } from "@/hooks/use-nostr-identity";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 function bytesToHex(bytes: Uint8Array): string {
@@ -41,6 +42,7 @@ type View = "options" | "generated";
 
 export function NostrConnect() {
   const router = useRouter();
+  const { setCapability } = useNostrIdentity();
   const [view, setView] = useState<View>("options");
   const [loading, setLoading] = useState(false);
   const [hasExtension, setHasExtension] = useState(false);
@@ -94,6 +96,7 @@ export function NostrConnect() {
         content: "",
       };
       const signedEvent = await nostr.signEvent(unsigned);
+      setCapability({ type: "extension", pk: pubkey });
       await doSignIn(pubkey, signedEvent);
     } catch {
       toast.error("Extension connection failed");
@@ -118,6 +121,7 @@ export function NostrConnect() {
 
   const connectGenerated = async () => {
     if (!generated) return;
+    setCapability({ type: "nsec", skHex: generated.skHex, pk: generated.pk });
     const event = await buildNip98Event(generated.skHex);
     await doSignIn(generated.pk, event);
   };
@@ -136,6 +140,7 @@ export function NostrConnect() {
       const sk = decoded.data as Uint8Array;
       const pk = getPublicKey(sk);
       const skHex = bytesToHex(sk);
+      setCapability({ type: "nsec", skHex, pk });
       const event = await buildNip98Event(skHex);
       await doSignIn(pk, event);
     } catch {

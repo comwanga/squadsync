@@ -248,7 +248,6 @@ def submit_reward_claim(token: str, req: RewardClaimSubmit, db: Session = Depend
         "lightning_address": claim.lightning_address,
     }
 
-
 @router.post("/{allocation_id}/payouts", response_model=PayoutOut,
              status_code=status.HTTP_201_CREATED)
 def create_payout(
@@ -257,7 +256,17 @@ def create_payout(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    allocation, team, splits = _preflight(db, allocation_id, req, current_user.id)
+    allocation: Allocation = assert_allocation_organizer(db, allocation_id, current_user.id)
+    team = db.query(Team).filter(Team.id == req.team_id, Team.allocation_id == allocation_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found in this allocation")
+
+    if req.total_sats > settings.PAYOUT_MAX_SATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"total_sats {req.total_sats} exceeds the payout ceiling "
+                   f"of {settings.PAYOUT_MAX_SATS} sats",
+        )
 
     # Idempotency: refuse a second payout for a team that already has one, so a
     # double-click or a client retry after a timeout can never pay winners twice.
@@ -269,9 +278,30 @@ def create_payout(
             detail="This team has already been paid; retry the existing payout instead.",
         )
 
+    members = (
+        db.query(Participant)
+        .join(TeamMember, Participant.id == TeamMember.participant_id)
+        .filter(TeamMember.team_id == req.team_id)
+        .order_by(Participant.id)
+        .all()
+    )
+
+    if req.escrow_coordinate:
+        splits = payout_service.compute_split(members, req.total_sats)
+    else:
+        try:
+            splits = payout_service.preflight(db, req.team_id, req.total_sats, req.addresses)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
     payout = Payout(event_id=allocation.event_id, allocation_id=allocation_id,
                     team_label=team.name, total_sats=req.total_sats, status="pending")
     db.add(payout)
+
+    if req.escrow_coordinate:
+        payout.escrow_coordinate = req.escrow_coordinate
+        payout.escrow_status = "escrow_pending"
+
     # The unique (allocation_id, team_label) constraint is the race backstop: if a
     # concurrent request inserted first, this flush raises before any sats move.
     try:
@@ -327,4 +357,40 @@ def report_item_failed(
     """Self-custody: the browser reports a send that produced no preimage."""
     payout, item = _get_item(db, payout_id, item_id, current_user.id)
     payout = payout_service.record_item_failed(db, payout, item, req.error)
+    return _payout_out(db, payout)
+
+
+@router.post("/payouts/{payout_id}/escrow-funded", response_model=PayoutOut)
+def escrow_funded(
+    payout_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark an escrow-managed payout as funded (organizer deposited with the agent)."""
+    payout = db.query(Payout).filter(Payout.id == payout_id).first()
+    if not payout:
+        raise HTTPException(status_code=404, detail="Payout not found")
+    assert_allocation_organizer(db, payout.allocation_id, current_user.id)
+    if payout.escrow_status != "escrow_pending":
+        raise HTTPException(status_code=409, detail="Payout is not in escrow_pending status")
+    payout.escrow_status = "escrow_funded"
+    db.commit()
+    return _payout_out(db, payout)
+
+
+@router.post("/payouts/{payout_id}/escrow-released", response_model=PayoutOut)
+def escrow_released(
+    payout_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark an escrow-managed payout as released (funds sent to recipients)."""
+    payout = db.query(Payout).filter(Payout.id == payout_id).first()
+    if not payout:
+        raise HTTPException(status_code=404, detail="Payout not found")
+    assert_allocation_organizer(db, payout.allocation_id, current_user.id)
+    if payout.escrow_status not in ("escrow_funded", "escrow_pending"):
+        raise HTTPException(status_code=409, detail="Payout has not been funded")
+    payout.escrow_status = "escrow_released"
+    db.commit()
     return _payout_out(db, payout)

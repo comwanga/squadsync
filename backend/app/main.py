@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.api.v1 import auth, events, participants, allocation, teams, export, public, feedback, payouts, rationale
+from app.api.v1 import auth, escrow, events, participants, allocation, teams, export, public, feedback, payouts, rationale
 import app.models  # noqa: F401
 
 
@@ -36,6 +36,7 @@ app.include_router(public.router, prefix="/api/v1/public", tags=["public"])
 app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["feedback"])
 app.include_router(payouts.router, prefix="/api/v1/allocations", tags=["payouts"])
 app.include_router(rationale.router, prefix="/api/v1/allocations", tags=["rationale"])
+app.include_router(escrow.router, prefix="/api/v1/escrow", tags=["escrow"])
 
 
 @app.get("/health")

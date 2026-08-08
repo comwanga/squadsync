@@ -11,6 +11,10 @@ class PayoutCreate(BaseModel):
     # Optional per-member address overrides: {str(participant_id): "name@domain"}.
     # Lets the organizer fill/correct a missing address in the payout modal.
     addresses: Optional[dict[str, str]] = None
+    # Optional escrow agent coordinate ("30361:pubkey:identifier"). When set, the
+    # payout is escrow-managed instead of a direct NWC send. No wallet credential
+    # is needed; the items go pending and the organizer deposits externally.
+    escrow_coordinate: Optional[str] = None
 
 
 class PayoutItemResult(BaseModel):
@@ -102,6 +106,8 @@ class PayoutOut(BaseModel):
     team_label: str
     total_sats: int
     status: str
+    escrow_coordinate: Optional[str] = None
+    escrow_status: str = "direct"
     items: list[PayoutItemOut]
 
     model_config = {"from_attributes": True}
