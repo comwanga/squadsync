@@ -287,7 +287,7 @@ def create_payout(
     )
 
     if req.escrow_coordinate:
-        splits = payout_service.compute_split(members, req.total_sats)
+        splits = [(m, "", amt) for (m, amt) in payout_service.compute_split(members, req.total_sats)]
     else:
         try:
             splits = payout_service.preflight(db, req.team_id, req.total_sats, req.addresses)
