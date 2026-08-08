@@ -1,0 +1,47 @@
+# SquadSync Railway blueprint
+# Deploy: railway up --from-project-root or connect repo in Railway dashboard.
+#
+# This defines two services and a Postgres database:
+#   - squadsync-db     — managed PostgreSQL
+#   - squadsync-api    — FastAPI backend (Dockerfile in backend/)
+#   - squadsync-web    — Next.js frontend (Dockerfile in frontend/)
+
+[build]
+
+[database]
+  [database.postgres]
+    name = "squadsync-db"
+    version = "16"
+
+[service.squadsync-api]
+  name = "squadsync-api"
+  [service.squadsync-api.build]
+    dockerfilePath = "./backend/Dockerfile"
+  [service.squadsync-api.deploy]
+    healthcheckPath = "/ready"
+    healthcheckTimeout = 15
+  [service.squadsync-api.variables]
+    # Railway injects DATABASE_URL automatically from the Postgres service link.
+    # Set the rest in the Railway dashboard or via `railway variables set`.
+    SECRET_KEY = "{{ secrets.SECRET_KEY }}"
+    ALGORITHM = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES = "1440"
+    FRONTEND_URL = "{{ secrets.FRONTEND_URL }}"
+    PUBLIC_API_URL = "{{ secrets.PUBLIC_API_URL }}"
+    ANTHROPIC_API_KEY = "{{ secrets.ANTHROPIC_API_KEY_OPTIONAL }}"
+    SQUADSYNC_NSEC = "{{ secrets.SQUADSYNC_NSEC_OPTIONAL }}"
+    FEEDBACK_NPUB = "{{ secrets.FEEDBACK_NPUB_OPTIONAL }}"
+    NOSTR_RELAYS = "wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band"
+
+[service.squadsync-web]
+  name = "squadsync-web"
+  [service.squadsync-web.build]
+    dockerfilePath = "./frontend/Dockerfile"
+  [service.squadsync-web.deploy]
+    healthcheckPath = "/"
+    healthcheckTimeout = 15
+  [service.squadsync-web.variables]
+    # Railway injects $PORT automatically. PUBLIC_API_URL must point to the
+    # squadsync-api service's public Railway URL.
+    NEXT_PUBLIC_API_URL = "{{ secrets.NEXT_PUBLIC_API_URL }}"
+    AUTH_SECRET = "{{ secrets.AUTH_SECRET }}"

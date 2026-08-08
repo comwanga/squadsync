@@ -19,6 +19,7 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   turbopack: {
     // Pin the workspace root to this app directory so Turbopack doesn't infer it
     // from parent lockfiles (the repo root and the home directory both have one),
