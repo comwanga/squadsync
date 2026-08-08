@@ -70,7 +70,6 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
         .then((res) => setEscrowAgents(res.agents))
         .catch(() => { toast.error("Could not load escrow agents"); setEscrowAgents([]); });
     }
-    if (!open) setEscrowAgents(null);
   }, [open, payoutMode, escrowAgents]);
 
   const handleOpenChange = (o: boolean) => {
@@ -82,6 +81,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
       setNwc("");
       setPreflight([]);
       setClaims([]);
+      setEscrowAgents(null);
     }
     onOpenChange(o);
   };
