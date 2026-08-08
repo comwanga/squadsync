@@ -185,10 +185,10 @@ export function AgentSettings() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1 text-sm">
-              <p>
+            <div className="space-y-1 text-sm min-w-0">
+              <p className="truncate">
                 <span className="font-medium">Coordinate:</span>{" "}
-                <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded break-all">
                   {published.coordinate}
                 </code>
               </p>
@@ -334,18 +334,18 @@ export function AgentSettings() {
               {agentList.map((agent) => (
                 <div
                   key={agent.coordinate}
-                  className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-3"
+                  className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-3 min-w-0 overflow-hidden"
                 >
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-medium truncate">
                     {agent.coordinate}
                     {agent.coordinate === published?.coordinate && (
                       <span className="ml-2 text-xs text-green-600">(you)</span>
                     )}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     {agent.escrow_type} &middot; {agent.networks.join(", ")}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground truncate">
                     Release: {agent.release_rules.release_trigger} &middot;{" "}
                     Refund: {agent.release_rules.refund_trigger}
                   </p>

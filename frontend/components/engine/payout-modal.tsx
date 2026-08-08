@@ -355,7 +355,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                     key={agent.coordinate}
                     type="button"
                     onClick={() => setSelectedAgent(agent)}
-                    className={`w-full text-left rounded-md border p-2.5 transition-colors ${
+                    className={`w-full min-w-0 text-left rounded-md border p-2.5 transition-colors overflow-hidden ${
                       selectedAgent?.coordinate === agent.coordinate
                         ? "border-blue-400 bg-blue-900/40"
                         : "border-slate-700 bg-slate-900/60 hover:border-slate-500"
@@ -364,10 +364,10 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                     <p className="text-sm font-medium text-slate-100 truncate">
                       {agent.coordinate}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       {agent.escrow_type} &middot; {agent.networks.join(", ")}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground truncate">
                       Release: {agent.release_rules.release_trigger}
                     </p>
                   </button>
@@ -410,9 +410,9 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
 
           {/* Escrow payout status display */}
           {isEscrowActive && (
-            <div className="rounded-md border border-blue-500/30 bg-blue-950/20 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-blue-300">
+            <div className="rounded-md border border-blue-500/30 bg-blue-950/20 p-3 space-y-2 min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-blue-300 truncate">
                   Escrow payout
                 </p>
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300">
