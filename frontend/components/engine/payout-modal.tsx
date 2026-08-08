@@ -350,7 +350,7 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
               )}
 
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {escrowAgents.map((agent) => (
+                {escrowAgents?.map((agent) => (
                   <button
                     key={agent.coordinate}
                     type="button"
