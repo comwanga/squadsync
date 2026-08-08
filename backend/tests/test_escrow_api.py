@@ -160,7 +160,7 @@ def test_refresh_agents(client, auth_headers):
 
 def test_escrow_payout_create_and_status_flow(client, auth_headers):
     """Full escrow payout lifecycle: create → funded → released."""
-    e = client.post("/api/v1/events", headers=auth_headers, json={"title": "Escrow Payout", "team_count": 1}).json()
+    e = client.post("/api/v1/events", headers=auth_headers, json={"title": "Escrow Payout", "team_count": 2}).json()
     client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
     r = client.post(
         f"/api/v1/events/{e['registration_slug']}/register",
@@ -203,7 +203,7 @@ def test_escrow_payout_create_and_status_flow(client, auth_headers):
 
 def test_escrow_funded_rejects_non_pending(client, auth_headers):
     """Marking funded on a direct payout is rejected."""
-    e = client.post("/api/v1/events", headers=auth_headers, json={"title": "Direct Payout", "team_count": 1}).json()
+    e = client.post("/api/v1/events", headers=auth_headers, json={"title": "Direct Payout", "team_count": 2}).json()
     client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
     r = client.post(
         f"/api/v1/events/{e['registration_slug']}/register",
