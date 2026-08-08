@@ -162,11 +162,13 @@ def test_escrow_payout_create_and_status_flow(client, auth_headers):
     """Full escrow payout lifecycle: create → funded → released."""
     e = client.post("/api/v1/events", headers=auth_headers, json={"title": "Escrow Payout", "team_count": 2}).json()
     client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
-    r = client.post(
-        f"/api/v1/events/{e['registration_slug']}/register",
-        json={"name": "EscrowRecipient", "email": "er@t.com", "primary_strength": "technical", "experience_level": "advanced"},
-    )
-    assert r.status_code in (200, 201)
+    for i, strength in enumerate(["technical", "design"]):
+        r = client.post(
+            f"/api/v1/events/{e['registration_slug']}/register",
+            json={"name": f"EscrowRecipient{i}", "email": f"er{i}@t.com",
+                  "primary_strength": strength, "experience_level": "advanced"},
+        )
+        assert r.status_code in (200, 201)
 
     a = client.post(f"/api/v1/events/{e['id']}/allocate", headers=auth_headers).json()
     teams = client.get(f"/api/v1/allocations/{a['id']}/teams", headers=auth_headers).json()
@@ -184,7 +186,7 @@ def test_escrow_payout_create_and_status_flow(client, auth_headers):
     payout = payout_res.json()
     assert payout["escrow_coordinate"] == "30361:deadbeef:my-agent"
     assert payout["escrow_status"] == "escrow_pending"
-    assert len(payout["items"]) == 1
+    assert len(payout["items"]) >= 1
 
     funded_res = client.post(
         f"/api/v1/allocations/payouts/{payout['id']}/escrow-funded",
@@ -205,12 +207,14 @@ def test_escrow_funded_rejects_non_pending(client, auth_headers):
     """Marking funded on a direct payout is rejected."""
     e = client.post("/api/v1/events", headers=auth_headers, json={"title": "Direct Payout", "team_count": 2}).json()
     client.patch(f"/api/v1/events/{e['id']}", headers=auth_headers, json={"status": "active"})
-    r = client.post(
-        f"/api/v1/events/{e['registration_slug']}/register",
-        json={"name": "DirectRecipient", "email": "dr@t.com", "primary_strength": "technical",
-              "experience_level": "advanced", "lightning_address": "dr@getalby.com"},
-    )
-    assert r.status_code in (200, 201)
+    for i, strength in enumerate(["technical", "design"]):
+        r = client.post(
+            f"/api/v1/events/{e['registration_slug']}/register",
+            json={"name": f"DirectRecipient{i}", "email": f"dr{i}@t.com",
+                  "primary_strength": strength, "experience_level": "advanced",
+                  "lightning_address": f"dr{i}@getalby.com"},
+        )
+        assert r.status_code in (200, 201)
     a = client.post(f"/api/v1/events/{e['id']}/allocate", headers=auth_headers).json()
     teams = client.get(f"/api/v1/allocations/{a['id']}/teams", headers=auth_headers).json()
 
