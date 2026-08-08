@@ -199,9 +199,10 @@ def test_cannot_cancel_funded_escrow(client, auth_headers):
     client.post(f"/api/v1/escrows/{escrow_id}/fund", headers=auth_headers, json={})
     client.post(f"/api/v1/escrows/{escrow_id}/confirm-funded", headers=auth_headers)
 
-    # Cannot cancel from funded
+    # Cancelling a funded escrow is allowed (refund needed)
     res = client.post(f"/api/v1/escrows/{escrow_id}/cancel", headers=auth_headers)
-    assert res.status_code in (400, 409, 422)
+    assert res.status_code == 200
+    assert res.json()["status"] == "cancelled"
 
 
 def test_escrow_amount_must_be_positive(client, auth_headers):
