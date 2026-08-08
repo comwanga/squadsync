@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Shield, Zap, Loader2, ArrowLeft, Copy, Check,
-  Wallet, QrCode, ExternalLink, CircleDot, CircleCheck,
-  XCircle, Eye, EyeOff,
+  Zap, Loader2, ArrowLeft, Copy, Check,
+  Wallet, CircleDot, CircleCheck, XCircle, Eye, EyeOff,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -21,7 +20,7 @@ import {
   fetchEscrow, activateEscrow, fundEscrow, confirmFunded, cancelEscrow,
   type Escrow,
 } from "@/hooks/use-escrows";
-import { payWithNwc, parseNwcUri } from "@/lib/lightning";
+import { payWithNwc } from "@/lib/lightning";
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; className: string }> = {
@@ -75,7 +74,13 @@ export default function EscrowDetailPage() {
   };
 
   useEffect(() => {
-    load();
+    if (!session?.accessToken) return;
+    setLoading(true);
+    fetchEscrow(session.accessToken, escrowId)
+      .then((data) => { setEscrow(data); setFundingRequest(data.funding_request); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [session?.accessToken, escrowId]);
 
   if (loading) {

@@ -4,10 +4,9 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
-  Wallet, Plus, Shield, CheckCircle2, Clock, XCircle, ArrowRight,
-  RefreshCw,
+  Wallet, Plus, ArrowRight, RefreshCw,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fetchEscrows, type EscrowItem } from "@/hooks/use-escrows";
@@ -42,19 +41,24 @@ export default function EscrowsPage() {
   const [escrows, setEscrows] = useState<EscrowItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  useEffect(() => {
     if (!session?.accessToken) return;
     setLoading(true);
-    try {
-      const data = await fetchEscrows(session.accessToken);
-      setEscrows(data);
-    } catch { /* non-critical */ }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
+    fetchEscrows(session.accessToken)
+      .then((data) => setEscrows(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [session?.accessToken]);
+
+  const refresh = () => {
+    if (!session?.accessToken) return;
+    setLoading(true);
+    fetchEscrows(session.accessToken)
+      .then((data) => setEscrows(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
 
   const active = escrows.filter((e) => activeStatuses.includes(e.status));
   const past = escrows.filter((e) => !activeStatuses.includes(e.status));
@@ -74,7 +78,7 @@ export default function EscrowsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={load} variant="outline" size="sm" className="gap-1.5">
+          <Button onClick={refresh} variant="outline" size="sm" className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
           </Button>
