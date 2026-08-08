@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Shield, Globe, Zap, Loader2, CheckCircle, Info } from "lucide-react";
@@ -39,7 +39,6 @@ export function AgentSettings() {
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState<PublishedAgent | null>(null);
   const [agentList, setAgentList] = useState<PublishedAgent[]>([]);
-  const [loaded, setLoaded] = useState(false);
 
   const loadAgents = async () => {
     try {
@@ -56,14 +55,13 @@ export function AgentSettings() {
       }
     } catch {
       // silent: agent list is non-critical
-    } finally {
-      setLoaded(true);
     }
   };
 
-  useState(() => {
+  useEffect(() => {
     loadAgents();
-  });
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  }, []);
 
   const handlePublish = async () => {
     if (!capability) {

@@ -57,23 +57,21 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
   const [preflight, setPreflight] = useState<string[]>([]);
   const [claims, setClaims] = useState<RewardClaim[]>([]);
   const [paymentAttempts, setPaymentAttempts] = useState<Record<string, PaymentAttempt>>({});
-  const [escrowAgents, setEscrowAgents] = useState<EscrowAgent[]>([]);
+  const [escrowAgents, setEscrowAgents] = useState<EscrowAgent[] | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<EscrowAgent | null>(null);
-  const [loadingAgents, setLoadingAgents] = useState(false);
 
   const n = team.members.length;
   const base = n > 0 ? Math.floor(totalSats / n) : 0;
   const rem = n > 0 ? totalSats % n : 0;
 
   useEffect(() => {
-    if (open && payoutMode === "escrow") {
-      setLoadingAgents(true);
+    if (open && payoutMode === "escrow" && escrowAgents === null) {
       fetchEscrowAgents()
         .then((res) => setEscrowAgents(res.agents))
-        .catch(() => toast.error("Could not load escrow agents"))
-        .finally(() => setLoadingAgents(false));
+        .catch(() => { toast.error("Could not load escrow agents"); setEscrowAgents([]); });
     }
-  }, [open, payoutMode]);
+    if (!open) setEscrowAgents(null);
+  }, [open, payoutMode, escrowAgents]);
 
   const handleOpenChange = (o: boolean) => {
     if (!o && Object.keys(paymentAttempts).length > 0) {
@@ -340,11 +338,11 @@ export function PayoutModal({ team, allocationId, open, onOpenChange }: PayoutMo
                 until prizes are released.
               </p>
 
-              {loadingAgents && (
+              {escrowAgents === null && (
                 <p className="text-xs text-muted-foreground">Loading agents from relays...</p>
               )}
 
-              {!loadingAgents && escrowAgents.length === 0 && (
+              {escrowAgents !== null && escrowAgents.length === 0 && (
                 <p className="text-xs text-amber-400">
                   No escrow agents found. Register yourself as an agent from the{" "}
                   <strong>Agent</strong> page, or use Direct send instead.
